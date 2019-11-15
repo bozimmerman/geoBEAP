@@ -1,0 +1,822 @@
+<!DOCTYPE html><html><head><title>Untitled</title></head><body><pre>
+;*****************************
+;*
+;*         geoBEAP II
+;* "Bo's Excellent Archive Program"
+;*
+;*      (C) 2001 Bo Zimmerman
+;*
+;*  Dedicated to Naomi Zimmerman
+;*****************************
+.if 	Pass1
+.noeqin
+.noglbl
+.include	GEOSequates
+.eqin
+.glbl
+.endif
+
+.psect
+	jmp	Go2ARK	; VPRGbase + 0
+
+Go2ARK:	lda	PackUnpack
+	beq	11$
+	jmp	Go2Unpack
+11$:	jmp	Go2Pack
+
+;****************************************************
+Go2Unpack:
+	cpb	SrcDrv,DstDrv
+	bne	90$
+	jsr	numPicked
+	cpx	#1
+	bgt	13$
+90$:	jsr	GetFirstFile	; get a filename
+	cpx	#$00
+	bne	11$
+	ldw	A2,#t2Ready1
+	cpb	SrcDrv,DstDrv
+	beq	10$
+	ldw	A2,#t2Ready2
+10$:	jsr	YNBox
+	cbi	sysDBData,#$03
+	bne	12$
+	lda	SrcDrv
+	jsr	SetDevice
+	jmp	StartUnARK
+11$:	jsr	i_CNCLBox
+	.word	t2NoDFile
+12$:	jmp	HappyEnd
+13$:	jsr	i_CNCLBox
+	.word	t2NoMulti
+	bra	12$
+Co2Unpack:	cpb	SrcDrv,DstDrv
+	beq	10$
+	lda	SrcDrv
+	jsr	SetDevice
+	jsr	GetNxtFile
+	cpx	#00
+	bne	10$
+	jmp	StartUnARK
+10$:	jsr	i_OKBox
+	.word	t2Done
+	jmp	HappyEnd
+t2Done:	.byte	$18,"Operation Complete",27,0
+t2NoDFile:	.byte	$18,"Select a file to unpack.",27,0
+t2NoMulti:	.byte	$18,"Select only one (1) file.",27,0
+t2NoFile:	.byte	$18,"Select one or more files.",27,0
+t2Ready1:	.byte	$18,"Ready to de-ARK file?",27,0
+t2Ready2:	.byte	$18,"Copy and de-ARK file?",27,0
+t2Ready3:	.byte	$18,"Ready to ARK file(s)?",27,0
+t2Ready4:	.byte	$18,"Copy and ARK file(s)?",27,0
+t2BadFile:	.block	100
+t2BadMs1:	.byte	34," is not ARKed!",27,0		
+t2Copy:	.byte	27,"Copying:",0
+t2Ark:	.byte	27,"ARKing:",0
+t2Clean:	.byte	27,"Closing:",0
+t2DeArk:	.byte	27,"De-ARKing:",0
+t2Convert:	.byte	27,"Converting:",0
+t2UnConvert:	.byte	27,"Unconverting:",0
+t2UnLink:	.byte	27,"Re-linking:",0
+
+StartUnARK:	mvw	A0,File
+	ldw	FNTabE,#$6000
+	lda	SrcDrv
+	jsr	SetDevice
+	jsr	OpenDisk
+	cpb	SrcDrv,DstDrv
+	beq	50$
+	ldw	A2,#t2Copy
+	mvw	File,A3
+	jsr	FileBar
+	mvw	File,A2
+	mvw	File,A3
+	ldw	A4,#$6000
+	ldw	A5,#$7f00
+	mvb	DstDrv,A6L
+	jsr	FileCopy
+	cpx	#0
+	beq	50$
+48$:	jmp	DiskError
+50$:	lda	DstDrv
+	jsr	SetDevice
+	jsr	OpenDisk
+	mvw	File,A2
+	ldb	A3L,#$ff
+	jsr	OpenSF
+	cpx	#0
+	bne	48$
+	mvw	$8401,HeadTNS
+	jsr	isARK
+	beq	60$
+59$:	jmp	notARK
+60$:	jsr	findLHead
+	bne	62$
+61$:	jsr	deARK
+	beq	65$
+	cpx	#$ff
+	beq	59$
+62$:	jmp	DiskError
+65$:	dew	NumFiles
+	cwi	NumFiles,#0
+	bne	61$
+	jsr	doneDARK
+	bne	62$
+	jsr	Imprint
+	jmp	Co2Unpack
+
+
+
+deARK:	ldb	R10L,#0
+	jsr	GetFreeDirBlk	; now find a directory entry
+	cpx	#0
+	beq	10$	; a error getting dir entry!
+90$:	rts
+10$:	sty	DirPTR	; store index for safe keeping
+	sty	DirPTR+1
+	mvw	R1,DirTNS
+	jsr	GetSByte
+	cpx	#0
+	bne	90$
+	ldy	DirPTR
+	sta	$8000,y	; FileType
+	and	#$1f
+	sta	TypeInfo
+	inc	DirPTR
+	jsr	GetSByte
+	cpx	#0
+	bne	90$
+	sta	FileLSize	; got last sector size
+	cmp	#0
+	beq	23$
+	ldy	DirPTR
+	lda	ThisTNS	; store start tns
+	sta	$8000,y
+	iny
+	lda	ThisTNS+1
+	sta	$8000,y
+	iny
+	ldb	A0L,#0
+20$:	sty	DirPTR	; store index for safe keeping
+	jsr	GetSByte
+	cpx	#0
+	bne	90$
+	ldy	DirPTR
+	sta	$8000,y
+	cmp	#0
+	beq	23$
+	ldx	A0L
+	sta	FNBuf,x
+	cmp	#$a0
+	bne	21$
+	lda	#0
+	sta	FNBuf,x
+21$:	iny
+	inc	A0L
+	cbi	A0L,#$10
+	blt	20$
+	sty	DirPTR	; store index for safe keeping
+	lda	FNBuf
+	beq	23$
+	ldw	A2,#t2DeArk
+	ldw	A3,#FNBuf
+	jsr	FileBar
+	cwi	ThisTNS,#0
+	bne	30$
+23$:	ldx	#$ff
+99$:	rts
+30$:	ldy	DirPTR
+	lda	#0
+	sta	$8000,y	; no rel ss info for now
+	iny
+	sta	$8000,y
+	iny
+	sty	DirPTR
+	jmp	deARK2
+
+deARK2:	jsr	GetSByte
+	cpx	#0
+	bne	99$
+	sta	RelInfo	; the record size
+	ldy	DirPTR
+	sta	$8000,y
+	inc	DirPTR
+	ldb	A0H,#6
+20$:	jsr	GetSByte
+	cpx	#0
+	bne	99$	; get "unused" bytes
+	ldx	A0H
+	sta	SafeBuf,x	; store them for later
+	dec	A0H
+	bne	20$
+	jsr	GetSByte	; get more rel info
+	cpx	#0
+	beq	10$
+99$:	rts
+10$:	sta	RelInfo+1	; the side sector block count
+	jsr	GetSByte	; get more rel info
+	cpx	#0
+	bne	99$
+	sta	FileLSize+1	; last side sector block size
+	ldb	A0H,#6
+	ldy	DirPTR
+31$:	ldx	A0H
+	lda	SafeBuf,x	; store them for later
+	sta	$8000,y
+	iny
+	dec	A0H
+	bne	31$
+	sty	DirPTR
+	jsr	GetSByte	; get fileblocks now
+	cpx	#0
+	bne	99$
+	ldy	DirPTR
+	sta	$8000,y
+	sta	FileBlocks
+	jsr	GetSByte	; get fileblocks now
+	cpx	#0
+	bne	99$
+	inc	DirPTR
+	ldy	DirPTR
+	sta	$8000,y
+	sta	FileBlocks+1
+33$:	mvw	FNTabE,A0
+	ldx	#0
+	ldy	#0
+35$:	lda	FNBuf,x
+	sta	(A0),y
+	beq	40$
+	inw	A0
+	inx
+	bne	35$
+40$:	mvw	A0,FNTabE
+	inw	FNTabE
+	jmp	unLinkARK
+23$:	ldx	#$ff
+24$:	rts
+
+unLinkARK:	mvb	RelInfo+1,ThisBlocks
+	ldb	ThisBlocks+1,#0
+	cbi	TypeInfo,#4
+	bne	10$
+	sbw	ThisBlocks,FileBlocks 	; get file only blocks
+10$:	mvw	ThisTNS,R1
+	ldw	R4,#$8100
+	jsr	GetBlock
+	cpx	#0
+	beq	11$
+99$:	rts
+11$:	mvw	$8100,ThisTNS
+	dew	FileBlocks
+	cwi	FileBlocks,#0
+	bne	10$
+	lda	$8100
+	beq	20$
+	ldb	$8100,#0
+	mvb	FileLSize,$8101
+	jsr	PutBlock
+	cpx	#0
+	bne	99$
+20$:	cbi	TypeInfo,#4
+	bne	50$
+	lda	DirPTR+1
+	add	#$13
+	tay
+	lda	ThisTNS
+	sta	$8000,y
+	iny
+	lda	ThisTNS+1
+	sta	$8000,y
+30$:	mvw	ThisTNS,R1
+	ldw	R4,#$8100
+	jsr	GetBlock
+	cpx	#0
+	bne	98$
+	mvw	$8100,ThisTNS
+	dec	ThisBlocks
+	bne	30$
+	lda	$8100
+	beq	50$
+	ldb	$8100,#0
+	mvb	FileLSize+1,$8101
+	jsr	PutBlock
+	cpx	#0
+	bne	98$
+50$:	mvw	DirTNS,R1
+	ldw	R4,#$8000
+	jsr	PutBlock
+	cpx	#0
+98$:	rts
+
+doneDARK:	mvw	File,R0
+	jsr	DeleteFile
+	cpx	#0
+	beq	10$
+	rts
+10$:	ldw	FNTabP,#$6000	
+doneDAR2:	ldw	A2,#t2UnConvert
+	mvw	FNTabP,A3
+	jsr	FileBar
+	mvw	FNTabP,A2
+	jsr	unConv
+	cpx	#0
+	beq	20$
+	cpx	#$ff
+	bne	19$
+	mvw	CONVdptr,R5
+	ldy	#0
+	lda	(R5),y
+	and	#$1f
+	cmp	#4
+	bne	20$
+	iny
+	lda	(R5),y
+	sta	FCOPbtns
+	iny
+	lda	(R5),y
+	sta	FCOPbtns+1
+	ldy	#$13
+	lda	(R5),y
+	sta	FCOPitns
+	iny
+	lda	(R5),y
+	sta	FCOPitns+1
+	ldw	FCOPbufS,#$7d00
+	ldw	A2,#t2UnLink
+	mvw	FNTabP,A3
+	jsr	FileBar
+	jsr	GetDirHead
+	jsr	FCOPreLink
+	jsr	PutDirHead
+	bra	20$
+19$:	cpx	#0
+	rts
+20$:	ldy	#0
+	inw	FNTabP
+	cpw	FNTabP,FNTabE
+	bge	30$
+	mvw	FNTabP,A0
+	ldy	#0
+	lda	(A0),y
+	bne	20$
+	inw	FNTabP
+	cpw	FNTabP,FNTabE
+	bge	30$
+	jmp	doneDAR2
+30$:	ldx	#0
+	rts
+
+findLHead:	mvw	HeadTNS,ThisTNS
+	mvw	HeadSize,A0
+10$:	mvw	ThisTNS,R1
+	ldw	R4,#$8100
+	jsr	GetBlock
+	cpx	#0
+	bne	99$
+	dec	A0L
+	bne	11$
+	mvw	$8100,ThisTNS
+	ldw	$8100,#$ff00
+	jsr	PutBlock
+	cpx	#0
+99$:	rts
+11$:	mvw	$8100,ThisTNS
+	bra	10$
+
+isARK:	jsr	GetSByte	; must return HeadSize
+	cpx	#0
+	beq	13$
+12$:	rts
+13$:	sta	NumFiles
+	ldb	NumFiles+1,#0
+	ldw	A0,#1
+	mvb	NumFiles,A1L
+15$:	avw	#$001d,A0	; get total head bytes
+	dec	A1L
+	bne	15$
+	ldw	HeadSize,#1
+16$:	cwi	A0,#254
+	ble	20$
+	inw	HeadSize
+	svw	#254,A0
+	bra	16$
+20$:	ldx	#0
+	rts
+
+notARK:	mvw	File,A2
+	ldb	t2BadFile,#34
+	ldy	#0
+61$:	lda	(A2),y	; copy filename
+	beq	62$
+	sta	t2BadFile+1,y
+	iny
+	bne	61$
+62$:	ldx	#0
+63$:	lda	t2BadMs1,x
+	sta	t2BadFile+1,y
+	beq	64$
+	inx
+	iny
+	bne	63$
+64$:	jsr	Imprint
+	ldw	A2,t2BadFile
+	jsr	CNCLBox
+	jmp	HappyEnd
+
+
+numPicked:	ldx	#0
+	ldy	#$00
+10$:	lda	SrcPicks,y
+	beq	11$
+	inx
+11$:	dey
+	bne	10$
+	rts
+
+
+;****************************************************
+Go2Pack:	ldw	A4,#FileName
+	lda	#12
+	jsr	GetFilename
+	beq	12$
+	lda	FileName
+	beq	12$
+	jsr	FixFNam
+	ldw	NumFiles,#0
+	ldw	FNTabE,#FNTab
+	ldw	A2,#t2Ready3
+	cpb	SrcDrv,DstDrv
+	beq	10$
+	ldw	A2,#t2Ready4
+10$:	jsr	YNBox
+	cbi	sysDBData,#$03
+	bne	12$
+	lda	SrcDrv
+	jsr	SetDevice
+	jsr	GetFirstFile	; get a filename
+	cpx	#$00
+	bne	11$
+	jmp	StartARK
+11$:	jsr	i_CNCLBox
+	.word	t2NoFile
+12$:	jmp	HappyEnd
+Co2Pack:	lda	SrcDrv
+	jsr	SetDevice
+	jsr	GetNxtFile
+	cpx	#$00
+	bne	10$
+	jmp	StartARK	; A0 points
+10$:	jmp	ContARK
+
+StartARK:	mvw	A0,File
+	lda	SrcDrv
+	jsr	SetDevice
+	jsr	OpenDisk
+	cpb	SrcDrv,DstDrv
+	beq	50$
+	ldw	A2,#t2Copy
+	mvw	File,A3
+	jsr	FileBar
+	mvw	File,A2
+	mvw	File,A3
+	ldw	A4,#$6000
+	ldw	A5,#$7f00
+	mvb	DstDrv,A6L
+	jsr	FileCopy
+	cpx	#0
+	beq	49$
+99$:	jmp	DiskError
+49$:	mvw	FCOPdptr,R5
+	mvw	FCOPdtns,R1
+	jsr	SaveTabE
+	lda	DstDrv
+	jsr	SetDevice
+	jsr	OpenDisk
+	bra	51$
+50$:	mvw	File,R6
+	ldb	$886e,#$ff	; find source file
+	jsr	FindFile
+	cpx	#0
+	bne	99$
+	jsr	SaveTabE
+51$:	inw	NumFiles
+	ldw	A2,#t2Convert
+	mvw	File,A3
+	jsr	FileBar
+	mvw	File,A2
+	jsr	Convert
+	cpx	#0
+	bne	60$
+	jsr	Imprint
+	jmp	Co2Pack
+60$:	cpx	#$ff
+	bne	99$
+	jsr	Imprint
+	jmp	Co2Pack
+
+ContARK:	lda	DstDrv
+	jsr	SetDevice
+	jsr	OpenDisk
+	ldw	A2,#FileName
+	ldb	A3L,#$00
+	jsr	CreatSF
+	cpx	#0
+	beq	23$
+22$:	jmp	DiskError
+23$:	ldw	LastTNS,#0
+	ldw	FirstTNS,#0
+	ldw	TotBlks,#0
+	ldw	FNTabP,#FNTab
+	lda	NumFiles
+	jsr	PutSByte	; store number of files
+	jmp	PackARK
+12$:	jmp	HappyEnd
+Co3Pack:	avw	#4,FNTabP
+	cpw	FNTabP,FNTabE
+	bge	10$
+	jmp	PackARK
+10$:	ldw	A2,#t2Clean
+	ldw	A3,#FileName
+	jsr	FileBar
+	ldb	A2L,#130
+	mvw	SIOWFsize,HeadSize
+	adw	TotBlks,SIOWFsize ; make the right size
+	jsr	ClosSF
+	cpx	#0
+	bne	11$
+	jsr	DoneARK
+	beq	12$
+11$:	jmp	DiskError
+12$:	jsr	i_OKBox
+	.word	t2Done
+	jmp	HappyEnd
+
+	
+
+PackARK:	jsr	GetARKFile
+	bne	99$
+	ldy	#1
+	lda	(R5),y
+	sta	ThisTNS
+	iny
+	lda	(R5),y
+	sta	ThisTNS+1
+	ldw	A2,#t2Ark
+	mvw	File,A3
+	jsr	FileBar
+	ldw	FileBlocks,#0
+	lda	LastTNS
+	bne	11$
+	mvw	ThisTNS,FirstTNS
+	bra	20$
+11$:	mvw	ThisTNS,$8100
+	mvw	LastTNS,R1
+	ldw	R4,#$8100
+	jsr	PutBlock	; do the LINKING!
+	cpx	#0
+	beq	20$
+99$:	rts
+20$:	jsr	PackLot
+	bne	99$
+	ldw	ThisBlocks,#0
+	ldw	FileLSize,#0
+	mvb	$8101,FileLSize
+	lda	RelTNS
+	beq	70$
+	mvw	RelTNS,$8100
+	mvw	ThisTNS,R1
+	ldw	R4,#$8100
+	jsr	PutBlock	; Link REL to rest
+	cpx	#0
+	bne	99$
+	mvw	RelTNS,ThisTNS
+	ldw	RelTNS,#0
+	jsr	PackLot
+	bne	99$
+	mvb	$8101,FileLSize+1
+70$:	mvw	ThisTNS,LastTNS
+	jsr	PutEntry
+	bne	99$
+	jmp	Co3Pack
+
+
+DoneARK:	ldw	R4,#$8100
+	mvw	SIOWTnS,R1
+	jsr	GetBlock
+	cpx	#0
+	beq	10$
+99$:	rts
+10$:	mvw	FirstTNS,$8100
+	ldw	R4,#$8100
+	mvw	SIOWTnS,R1
+	jsr	PutBlock	; re-save first block
+	cpx	#0
+	bne	99$
+	ldw	A2,#FNTab	; start deleting everything
+20$:	cpw	A2,FNTabE
+	blt	30$
+	ldx	#0
+29$:	rts
+30$:	ldy	#0
+	lda	(A2),y
+	sta	R1L
+	iny
+	lda	(A2),y
+	sta	R1H
+	ldw	R4,#$8000
+	jsr	GetBlock
+	cpx	#0
+	bne	29$
+	ldy	#2
+	lda	(A2),y
+	sta	R5L
+	iny
+	lda	(A2),y
+	sta	R5H
+	ldy	#0
+	tya
+	sta	(R5),y
+	jsr	PutBlock
+	cpx	#0
+	bne	29$
+	avw	#4,A2
+	bra	20$
+
+
+PackLot:
+20$:	inw	ThisBlocks
+	inw	FileBlocks	; loop through file blocks
+	inw	TotBlks
+	mvw	ThisTNS,R1
+	ldw	R4,#$8100
+	jsr	GetBlock
+	cpx	#0
+	bne	99$
+	lda	$8100
+	beq	30$
+	mvw	$8100,ThisTNS
+	bra	20$
+30$:	ldx	#0
+99$:	rts
+
+FixFNam:	ldw	A0,#FileName
+10$:	ldy	#0
+	lda	(A0),y
+	beq	16$
+	cmp	#'.'
+	bne	15$
+	inw	A0
+	lda	(A0),y
+	beq	16$
+	cmp	#'A'
+	beq	11$
+	cmp	#'a'
+	bne	15$
+11$:	rts
+15$:	inw	A0
+	bra	10$
+	rts
+16$:	ldw	A4,#t2fnExt	; needs extension
+17$:	lda	(A4),y	; copy extension
+	sta	(A0),y
+	beq	11$
+	iny
+	bne	17$
+	rts
+t2fnExt:	.byte	".ARK",0
+
+GetARKFile:	ldw	RelTNS,#0
+	mvw	FNTabP,A0
+	ldy	#0
+	lda	(A0),y
+	sta	R1L
+	iny
+	lda	(A0),y
+	sta	R1H
+	ldw	R4,#$8000
+	mvw	R1,DirTNS
+	jsr	GetBlock
+	cpx	#0
+	beq	10$
+	rts
+10$:	ldy	#2
+	lda	(A0),y
+	sta	R5L
+	iny
+	lda	(A0),y
+	sta	R5H
+	mvw	R5,DirPTR
+	ldy	#3
+20$:	lda	(R5),y
+	beq	30$
+	cmp	#$a0
+	beq	30$
+	sta	FNBuf-3,y
+	iny
+	cpy	#$13
+	blt	20$
+30$:	lda	#0
+	sta	FNBuf-3,y
+	ldw	File,#FNBuf
+	ldy	#0
+	lda	(R5),y
+	and	#$1f
+	cmp	#$04
+	bne	70$
+	ldy	#$13
+	lda	(R5),y
+	sta	RelTNS
+	iny
+	lda	(R5),y
+	sta	RelTNS
+70$:	ldx	#0
+	rts
+
+PutEntry:	mvw	DirPTR,R5
+	ldy	#0
+10$:	lda	(R5),y
+	jsr	PutSByte
+	cpx	#0
+	beq	11$
+99$:	rts
+11$:	lda	FileLSize
+	jsr	PutSByte
+	cpx	#0
+	bne	99$
+	ldb	SafeBuf,#3
+12$:	ldy	SafeBuf
+	lda	(R5),y
+	jsr	PutSByte	; filename
+	cpx	#0
+	bne	99$
+	inc	SafeBuf
+	cpb	SafeBuf,#$13
+	blt	12$
+	ldb	SafeBuf,#$15
+13$:	ldy	SafeBuf
+	lda	(R5),y
+	jsr	PutSByte	; rel file info, unused bytes
+	cpx	#0
+	bne	99$
+	inc	SafeBuf
+	cpb	SafeBuf,#$1c
+	blt	13$
+	lda	ThisBlocks	; rel file side sector block count
+	jsr	PutSByte
+	cpx	#0
+	bne	99$
+	lda	FileLSize+1	; # of used bytes in last ss entry
+	jsr	PutSByte
+	cpx	#0
+	bne	99$
+	lda	FileBlocks	; file blocks
+	jsr	PutSByte
+	cpx	#0
+	bne	99$
+	lda	FileBlocks+1	; file blocks cont
+	jsr	PutSByte
+	rts	
+
+SaveTabE:	mvw	FNTabE,A0
+	ldy	#0
+	lda	R1L
+	sta	(A0),y
+	iny
+	lda	R1H
+	sta	(A0),y
+	iny
+	lda	R5L
+	sta	(A0),y
+	iny
+	lda	R5H
+	sta	(A0),y
+	avw	#4,FNTabE
+	rts
+
+
+
+.ramsect
+TRACK:	; for fun
+SECTOR:	; for fun
+TotBlks:	.block	2	; total number of ARKed blocks
+SafeBuf:	.block	10	; for saving registers
+File:	.block	2	; the file being worked on
+DirTNS:	.block	2	; This files directory TNS
+DirPTR:	.block	2	; This files directory pointer 
+NumFiles:	.block	2	; duh
+FNTabE:	.block	2	; end of file pointer table
+FNTabP:	.block	2	; current file pointer
+TypeInfo:	.block	1
+HeadTNS:	.block	2	; track and sector of lynx head
+HeadSize:	.block	2	; number of head blocks
+FirstTNS:	.block	2	; first file tns
+ThisTNS:	.block	2	; work tracknsector pointer	
+RelTNS:	.block	2	; for ARKing REL files
+LastTNS:	.block	2	; last file tns
+ThisBlocks:	.block	2	; for section counting
+FileBlocks:	.block	2	; number of blocks in file
+FileLSize:	.block	2	; number of bytes in last block
+RelInfo:	.block	2	; relative file information
+FNTab:	.block	400*4	; 4 bytes per file
+FNBuf:	.block	30	; filename buffer
+</pre></body></html>

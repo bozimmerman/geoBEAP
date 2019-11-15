@@ -1,0 +1,1509 @@
+<!DOCTYPE html><html><head><title>Untitled</title></head><body><pre>
+;*****************************
+;*
+;*           geoBEAP
+;* "Bo's Excellent Archive Program"
+;*
+;*      by: Bo Zimmerman
+;*
+;*  Written for: LoadStar 64
+;*  Completed on Jan. 22nd, 1996
+;*  Revised on Feb 27, 1997
+;*  Updated on Jan 4th, 1998
+;*  Dedicated to Naomi Zimmerman
+;*****************************
+
+.if	Pass1
+	.noeqin
+	.noglbl
+	.include	GEOSequates
+	.eqin
+	.glbl
+.endif
+	.psect
+
+
+;*******************
+;*  LaunChk
+;*******************
+
+LaunChk:	cpb	SrcDRV,DestDRV	; no drives same
+	bne	10$
+	ldw	A7,#DEtxt0
+	ldw	A8,#DEtxt1	; drives same, exit
+	jmp	GOKbox
+10$:	lda	Conv	; check pack/unpack
+	bne	11$
+	jmp	PakChk	; jump to PACK mode
+11$:	jmp	UnPakChk
+
+CMDSet:	jsr	OpenDisk	; open disk, error chk
+	cpx	#0
+	bne	10$	
+	lda	$8908	; will be last availbale track
+	clc
+	adc	#1	; and add one
+	sta	TabCMD+1	; just in case
+	ldx	#0
+10$:	rts
+
+;*******************
+;*  UnPakChk
+;*******************
+
+UnPakChk:
+	jsr	DestSet
+	jsr	CMDSet
+	beq	21$	; file opening error?
+	ldw	Temp+15,#0
+	ldy	#2	; dest file error, exit
+	jmp	DoError
+21$:	ldw	A1,#Select	; continue with unpack
+	ldw	A0,#SrcDRV+20	; now check source
+	ldy	#99	;   file name.
+	jsr	FIndex
+	beq	12$
+	ldw	A7,#FNtxt0
+	ldw	A8,#NOTXT	; bad fname, so exit
+	jmp	GOKbox
+12$:	jsr	SrcSet	; load source file info
+	jsr	OpenDisk
+	cpx	#0
+	bne	20$	; file opening error?
+	mvw	A0,R6
+	ldb	$886e,#$ff
+	jsr	FindFile
+	cpx	#0	; check for error
+	beq	13$
+20$:	ldw	Temp+15,#0
+	ldy	#1	; source file error, exit
+	jmp	DoError
+13$:	ldy	#$15	; check file type
+	lda	(R5),y
+	beq	17$
+16$:	ldw	A7,#NTtxt0
+	ldw	A8,#NTtxt1	; not sequential, so exit
+	jmp	GOKbox
+17$:	iny
+	lda	(R5),y	; must be NON-GEOS!
+	bne	16$
+	lda	Mode	; check file mode
+	beq	14$	
+	jmp	BUnPkChk	; continue with .D64
+14$:	lda	DestDRV	; check dest drive type
+	jsr	DriveST
+	cmp	#3	; 1541/1571 ok
+	blt	15$
+	ldw	A7,#D8txt0
+	ldw	A8,#D8txt1	; bad type, so exit
+	jmp	GOKbox
+15$:	ldy	#$1c	; check file size
+	lda	(R5),y
+	cmp	#$b1	; must be 689 blks!
+	bne	18$
+	iny
+	lda	(R5),y
+	cmp	#$02
+	beq	19$	; no, so ask if blks good
+18$:	ldw	A7,#NDtxt0
+	ldw	A8,#NDtxt1
+	jsr	GODbox
+	beq	19$
+	rts
+19$:	jmp	DoUnD64	; start unpacking
+
+;********************
+;* CreateCF	: Set up a drive in memory
+;* Requires	: "File&Disk.EQ", ClrBBuf 
+;* Parameters	: A0 w/ file name, curDrive w/ drive, 
+;*		: 256 .byte BlkBuf, dirTnS .word, Fsize .word
+;* Returns		: dirPtr w/ direntry, Tns w/ T&S, Fsize initialized
+;*		: errors in .x
+;********************
+
+CreateCF:	 
+	mvw	A0,R6
+	ldb	$886e,#1
+	jsr	FindFile	; make sure file not there
+	cpx	#0
+	bne	12$	; file found error!
+	ldx	#34
+	rts
+12$:	jsr	OpenDisk	; get directory header
+	cpx	#0
+	bne	10$
+	ldw	R2,#3	; allocate first block	
+	ldw	R6,#Temp
+	jsr	BlkAlloc	; block is now mine
+	cpx	#0
+	beq	11$
+10$:	rts
+11$:	jsr	ClrBBuf	; clear buffer
+	mvw	Temp,TnS
+	ldb	R10L,#0
+	jsr	GetFreeDirBlk	; find dir entry
+	cpx	#0
+	bne	10$
+	sty	A1L	; save entry index
+	mvw	R1,dirTnS	; save t & s of dir entry
+	ldb	A1H,#$80
+	mvw	A1,dirPtr	; for close perhaps?
+	ldw	R0,#$1d	; clear the new entry
+	mvw	A1,R1
+	jsr	ClearRam	; fill entry w/ zeroes	
+	ldy	#0
+	sty	Fsize+1	; clear Fsize high byte
+	lda	#2	; unclosed PRG file
+	sta	(A1),y	; set file type
+	iny
+	lda	TnS	; save first track
+	sta	(A1),y
+	iny
+	lda	TnS+1	; save first sector
+	sta	(A1),y
+	lda	#0
+	ldy	#$1c
+	sta	Fsize	; set Fsize	
+	sta	(A1),y
+	inc	Fsize	; file size = 1
+	avw	#3,A1	; set up for fname move
+	jsr	MvFname
+	jsr	SaveBAM
+	mvw	dirTnS,R1	; restore t & s
+	ldw	R4,#$8000
+	jsr	PutBlock	; write back entry, done.
+	cpx	#0
+	beq	13$
+13$:	rts
+
+;*******************
+;*  PutByteF
+;*******************
+
+;* PutByteF - save a byte into a CreateCF opened file
+;* send:  curDrive with drive, and TnS w/ T&S of buffer
+;* send: Fsize with file size, and .a with byte to save
+;* have: buffer in BlkBuf, with index in first two bytes
+;* have: ClrBBuf available, and Temp buffer available
+;* returns: TnS with new T&S of buffer, and error in .x
+PutByteF:
+	inc	BlkBuf+1	; increment index
+	beq	10$
+	ldy	BlkBuf+1
+	sta	BlkBuf,y	; store byte
+	ldx	#0
+11$:	rts
+10$:	sta	Temp+10	; save writable byte
+	jsr	LoadBAM
+	avw	#1,Fsize
+	ldw	R2,#3	; allocate next block	
+	mvw	TnS,R3	; start from here
+	ldw	R6,#Temp
+	jsr	NxtBlkAlloc	; block is now mine
+	cpx	#0
+	beq	14$
+	rts
+14$:	mvw	Temp,BlkBuf	; point to next block
+	mvw	TnS,R1	; ready this block
+	ldw	R4,#BlkBuf	; write this block
+	jsr	PutBlock	;  on track to disk
+	cpx	#0		; error?
+	beq	15$
+	rts
+15$:	jsr	SaveBAM
+	mvw	Temp,TnS	; save new block
+	jsr	ClrBBuf
+	lda	Temp+10	; restore writable byte
+	jmp	PutByteF
+
+ClrBBuf:	ldw	R0,#256
+	ldw	R1,#BlkBuf	; clear buffer
+	jsr	ClearRam
+	inc	BlkBuf+1
+	rts
+
+;********************
+;* CloseCF
+;********************
+;* send: Fsize w./ file size, and dirTnS w/ entry t & s
+;* send: TnS w/ T&S of buffer, and dirPtr w/ dir entry 
+;* have: BlkBuf available
+;* returns: error in .x
+CloseCF:	mvw	TnS,R1	; ready this block
+	ldw	R4,#BlkBuf	; write this block
+	jsr	PutBlock
+	cpx	#0	; error?
+	bne	11$
+	mvw	dirPtr,R4
+	ldy	#0
+	lda	#130	; closed PRG file
+	sta	(R4),y	; set file type
+	ldy	#$1c
+	lda	Fsize	
+	sta	(R4),y	; file size = Fsize
+	iny
+	lda	Fsize+1
+	sta	(R4),y
+	mvw	dirTnS,R1
+	ldw	R4,#$8000
+	jsr	PutBlock	; write back entry, done.
+	cpx	#0
+	bne	11$
+	jsr	LoadBAM
+	jsr	PutDirHead	; send the BAM back
+	cpx	#0
+	bne	11$
+	rts
+11$:	ldy	#2
+	rts
+
+;********************
+;* SrcSet, DestSet
+;* SetDrive
+;********************
+
+SrcSet:	lda	SrcDRV	; make src drive current
+	jmp	SetDrive
+
+DestSet:	lda	DestDRV	; make dest. drv current
+	jmp	SetDrive
+
+SetDrive:	cmp	curDrive	; already set?
+	bne	10$
+11$:	ldx	#0	; yes, so return no error
+	rts
+10$:	jsr	SetDevice
+	cbi	$c00f,#$40	; wheels version
+	blt	11$	; no adjustment needed
+12$:	cbi	$904f,#$50	; check driver version
+	blt	11$
+	ldy	curDrive
+	lda	driveType-8,y	; grab the drive type
+	and	#%00000111
+	cmp	#$03	; only the 5.25" are a prob
+	bge	11$
+	jmp	OpenDisk	; its a bad one, so reop
+
+
+
+;********************
+;* LoadBAM
+;* SaveBAM
+;********************
+SaveBAM:
+	ldy	#0
+10$:	lda	$8200,y
+	sta	BAM1,y
+	lda	$8900,y
+	sta	BAM2,y
+	lda	$9c80,y
+	sta	BAM3,y
+	iny
+	bne	10$
+	rts
+
+LoadBAM:
+	ldy	#0
+10$:	lda	BAM1,y
+	sta	$8200,y
+	lda	BAM2,y
+	sta	$8900,y
+	lda	BAM3,y
+	sta	$9c80,y
+	iny
+	bne	10$
+	rts
+
+;*******************
+;* Working bar routines
+;*  WBsetup
+;*  WBupdate
+;*  WBcleanup
+;*******************
+
+WBsetup:	sta	WBmax	; set up progress window
+	ldb	WBmax+1,#0
+	lda	WBmax	; make sure tracks right
+	bne	10$
+	inc	WBmax+1
+10$:	jsr	WBmath
+	ldb	dispBufferOn,#ST_WR_FORE
+	jsr	i_GraphicsString
+	.byte	NEWPATTERN,0
+	.byte	MOVEPENTO,103,0,70
+	.byte	FRAME_RECTO,213,0,120
+	.byte	MOVEPENTO,104,0,71
+	.byte	RECTANGLETO,212,0,119
+	.byte	MOVEPENTO,113,0,100
+	.byte	FRAME_RECTO,203,0,110
+	.byte	ESC_PUTSTRING,123,0,85,$18,"Working...",27,0
+	ldw	WBcount,#0
+	jmp	WBupdate
+
+WBupdate:	;** add to progress window
+	inw	WBcount	; allowed to increment?
+	cpw	WBcount,WBctop
+	bge	10$	; if not, exit	
+	rts	
+10$:	ldw	WBcount,#0	; reset countr
+	adw	WBincr, WBcurr	; yes, so do so
+	jsr	i_GraphicsString
+	.byte	NEWPATTERN,1
+	.byte	MOVEPENTO,113,0,100
+	.byte	RECTANGLETO
+WBcurr:	.word	113
+	.byte	110
+	.byte	0	;end
+	rts
+
+WBcleanup:	;** remove progress win.
+	jsr	i_RecoverRectangle
+	.byte	70,120	; top, bottom
+	.word	103	; left
+	.word	213	; right
+	ldb	dispBufferOn,#(ST_WR_FORE|ST_WR_BACK)
+	rts
+
+;*******************
+;*  WBmath
+;*******************
+WBmath:	mvw	WBmax,A7	; start with WBctop, FREQ
+	ldw	A8,#90
+	ldx	#A7L
+	ldy	#A8L
+	jsr	Ddiv
+	lda	$0000,x
+	sta	WBctop
+	lda	$0001,x
+	sta	WBctop+1
+	inw	WBctop	; now have FREQ
+	mvw	WBmax,A9	; now get X
+	mvw	WBctop,A8
+	ldx	#A9L
+	ldy	#A8L
+	jsr	Ddiv
+	lda	$0000,x
+	sta	A9L
+	lda	$0001,x
+	sta	A9H	; now have X
+	ldw	A7,#90	; now get WBincr
+	mvw	A9,A8
+	ldx	#A7L
+	ldy	#A8L
+	jsr	Ddiv
+	lda	$0000,x
+	sta	WBincr
+	lda	$0001,x
+	sta	WBincr+1	; now have WBincr
+	ldy	#0
+	ldw	A8,#0	; the new X
+10$:	cpy	WBincr	; now get Y into X
+	beq	11$
+	adw	A9,A8	; X * WBincr
+	iny
+	bne	10$	; now have Y
+11$:	ldw	WBcurr,#113
+	avw	#90,WBcurr	; start = limit(90) - Y
+	sbw	A8,WBcurr
+	rts
+
+;********************
+;* DoUnD64
+;********************
+
+DoUnD64:	ldw	A7,#OKtxt0	; standard confirm
+	ldw	A8,#NOTXT
+	lda	DestDRV	; check if dest is 1541
+	jsr	DriveST
+	cmp	#1
+	beq	10$
+	ldw	A7,#D6txt0	; 1571 confirm
+	ldw	A8,#D6txt1
+10$:	jsr	GODbox
+	beq	11$	; get start confirm
+	rts
+11$:	lda	#36	; expected tracks
+	jsr	WBsetup
+	mvw	$8401,TnS	; initialize GetTrack T&S
+	ldw	Byte,#0
+	ldb	Track,#1	; initialize Dest T & S
+	ldb	TSindex,#0
+12$:	ldx	TSindex
+	lda	Tab1541,x	; read sectors
+	beq	13$	; 0, so done
+	add	#1
+	sta	Sectors
+	inx
+	lda	Tab1541,x	; read track limit
+	sta	TrackTo
+	inx
+	stx	TSindex
+	jsr	UnTracks	; unpack these tracks
+	beq	12$
+14$:	jmp	WBcleanup
+13$:	ldw	A0, #DestDRV	; update destination
+	lda	DestDRV
+	jsr	MakeDRV
+	jsr	WBcleanup	; clean up screen
+	ldw	A7,#OCtxt0	; say yer done.
+	ldw	A8,#NOTXT
+	jsr	GOKbox
+	jmp	UpdateD	; be done.
+
+Tab1541:	.byte	20,18,18,25,17,31,16,36,0,0
+Tab1571:	.byte	20,18,18,25,17,31,16,36,20,53,18,60,17,66,16,71,0,0
+Tab1581:	.byte	39,81,0,0
+TabCMD:	.byte	255,255,0,0
+
+
+
+;********************
+;* DoError
+;********************
+DoError:	stx	Temp+17
+	cpy	#2	; 1 = source error
+	beq	10$	; 2 = destination error
+	cpy	#1
+	bne	11$
+	ldw	A7,#DStxt0	; show source err box
+	bra	12$
+10$:	ldw	A7,#DDtxt0	; show dest err box
+12$:	mvw	A7,A2
+	avw	#21,A2
+	lda	Temp+17
+	jsr	HexB
+	ldw	A8,#ERtxt0
+	mvw	A8,A2
+	avw	#16,A2
+	lda	Temp+15
+	jsr	HexB
+	avw	#3,A2
+	lda	Temp+16
+	jsr	HexB
+	jsr	GOKbox
+	ldx	Temp+17
+	rts
+11$:	ldw	A7,#DUtxt0
+	bra	12$
+
+;*******************
+;*  UnTracks
+;*  RdTrackB
+;*  Read256B
+;*******************
+
+UnTracks:	
+20$:	jsr	SrcSet	; reset for reading
+	jsr	RdTrackB	; read in track bytes
+	bne	11$
+	jsr	WBupdate
+	jsr	DestSet	; set up for writing
+	jsr	PutTrack	; save the track
+	bne	12$
+	inc	Track
+	cpb	Track,TrackTo	; continue till track limit
+	bne	20$
+	ldx	#0	; return no errors!
+	rts
+11$:	cpx	#11	; EOF is an exception
+	beq	13$
+	mvw	TnS,Temp+15
+	ldy	#1	; return SRC error
+	jmp	DoError
+13$:	rts
+12$:	mvw	Track,Temp+15
+	ldy	#2	; return DEST error
+	jmp	DoError
+
+RdTrackB:	
+	ldw	A0,#Buffer	; init track buffer
+	ldb	Sector,#0	; start from sector 0
+10$:	jsr	Read256B	; get sector
+	bne	11$
+	inc	Sector
+	cpb	Sector,Sectors	; get all sectors to limit
+	bne	10$
+	ldx	#0
+11$:	rts
+
+Read256B:	
+	mvw	TnS,R1	; reload track & sector
+	ldw	R4,#BlkBuf	; official system cache buf
+	mvw	Byte,R5	; restore index info
+10$:	jsr	ReadByte	; get a byte, cached
+	ldy	#0	; save byte in buffer
+	sta	(A0),y
+	inc	A0L
+	bne	11$	; finish the full block
+	inc	A0H
+11$:	cbi	A0L,#[(Buffer)
+	bne	10$
+	mvw	R1,TnS	; save track & sec
+	mvw	R5,Byte	; save index info?
+	cpx	#0	; no errors allowed.
+	bne	13$
+12$:	ldx	#0	; set the z stat
+13$:	rts
+
+;*******************
+;* PutTrack
+;* PutBLK
+;*******************
+
+PutTrack:
+	ldw	R4,#Buffer	; set up track buffer
+	ldb	Sector,#0	; start at sector 0
+10$:	jsr	PutBLK	; write a block
+	bne	11$
+	inc	Sector
+	cpb	Sector,Sectors	; write all sectors
+	bne	10$
+	ldx	#0
+11$:	rts		
+
+PutBLK:	mvw	Track,R1	; save one sector in
+	jsr	PutBlock	;  on track to disk
+	cpx	#0
+	bne	10$
+	inc	R4H	; next sector
+	ldx	#0
+10$:	rts
+
+;*******************
+;*  PakChk
+;*******************
+
+PakChk:	jsr	SrcSet	; first init the source
+	jsr	CMDSet
+	beq	21$	; file opening error?
+	ldw	Temp+15,#0
+	ldy	#2
+	jmp	DoError	; dest file error, exit
+21$:	lda	Mode	; check for BEP
+	beq	99$
+	jmp	BPakChk
+99$:	lda	SrcDRV	; check if source is 5.25
+	jsr	DriveST
+	cmp	#3	; Is it a 5.25 drive?
+	blt	98$
+	ldw	A7,#D8txt2	; Nope, so error.. bye!
+	ldw	A8,#D8txt1
+	jmp	GOKbox
+98$:	jsr	DestSet
+	jsr	OpenDisk	; get dest blks free
+	cpx	#0
+	bne	16$	; file opening error?
+	ldw	R5,#$8200
+	jsr	CalcBlksFree
+	mvw	R4,Temp	; save blks free in temp
+	ldb	Fname,#0	; clear filename out
+	ldw	R0,#FNMdbox	; get filename dialog box
+	ldw	A4,#Fname	; position for fname
+	jsr	DoDlgBox	; get dest filename
+	cbi	sysDBData,#2	; cancel hit?
+	bne	11$
+10$:	rts
+11$:	ldw	A0,#Fname
+	lda	Fname
+	beq	10$	; null filename = exit
+	ldw	A1,#D64ext
+	jsr	AppString	; add extension
+	jsr	FnamUpp	; make uppercase
+	cwi	Temp,#689
+	bgt	14$	; need 689 blks free
+	ldw	A7,#NBtxt0
+	ldw	A8,#NBtxt1	; report not enuff blks
+	jmp	GOKbox
+14$:	jsr	CreateCF	; now create file
+	beq	15$
+16$:	txa
+	pha
+	mvw	TnS,Temp+15
+	ldw	A7,#ERtxt1	; error creating file
+	ldw	A8,#ERtxt2
+	jsr	GOKbox
+	pla
+	tax
+	rts
+15$:	jmp	DoPakD64	; get started!
+
+D64ext:	.byte	".D64",0
+
+;*******************
+;* DoPakD64
+;*******************
+
+DoPakD64:	
+	lda	SrcDRV	; check if src is 1541
+	jsr	DriveST
+	cmp	#1	; Is it a 1541 drive?
+	beq	11$
+	ldw	A7,#D7txt0	; 1571 confirm
+	ldw	A8,#D7txt1
+10$:	jsr	GODbox
+	beq	11$	; get start confirm
+91$:	jsr	DestSet
+	ldw	R0,#Fname
+	jmp	DeleteFile	; remove file, exit
+11$:	lda	#36	; expected tracks
+	jsr	WBsetup
+	ldw	Byte,#0	; clear byte, for Wr256B
+	ldb	Track,#1	; initialize Source T & S
+	ldb	TSindex,#0
+12$:	ldx	TSindex	; start a track clump
+	lda	Tab1541,x	; read sectors
+	beq	13$	; 0, so done
+	add	#1
+	sta	Sectors
+	inx
+	lda	Tab1541,x	; read track limit
+	sta	TrackTo
+	inx
+	stx	TSindex
+	jsr	PkTracks	; pack these tracks
+	beq	12$
+33$:	jsr	DestSet
+	jsr	CloseCF	; update disk
+	ldw	R0,#Fname
+	jsr	DeleteFile	; now remove file
+	jmp	WBcleanup
+13$:	jsr	CloseCF	; close file, done
+	bne	33$
+	ldw	A0, #DestDRV	; update destination
+	lda	DestDRV
+	jsr	MakeDRV
+	jsr	WBcleanup
+	ldw	A7,#OCtxt0	; say yer done.
+	ldw	A8,#NOTXT
+	jsr	GOKbox
+	jmp	UpdateD	; be done.
+
+;********************
+;* PkTracks
+;********************
+
+PkTracks:	
+10$:	jsr	SrcSet	; reset for reading
+	jsr	ReadTrack	; read in track
+	bne	11$
+	jsr	WBupdate
+	jsr	DestSet	; set up for writing
+	jsr	WrTrackB	; save the track bytes
+	bne	12$
+	inc	Track
+	cpb	Track,TrackTo	; continue till track limit
+	bne	10$
+	ldx	#0	; return no errors!
+	rts
+11$:	mvw	Track,Temp+15
+	ldy	#1	; return SRC error
+	jmp	DoError
+12$:	mvw	TnS,Temp+15
+	ldy	#2	; return DEST error
+	jmp	DoError
+
+;********************
+;* ReadTrack
+;* ReadSector
+;* WrTrackB
+;* Wr256B
+;********************
+
+ReadTrack:	
+	ldw	A0,#Buffer	; init track buffer
+	ldb	Sector,#0	; start from sector 0
+10$:	jsr	ReadSector	; get sector
+	bne	11$
+	inc	Sector
+	cpb	Sector,Sectors	; get all sectors to limit
+	bne	10$
+	ldx	#0
+11$:	rts
+
+ReadSector:	
+	mvw	Track,R1	; reload track & sector
+	mvw	A0,R4	; official block cache buf
+	jsr	GetBlock
+10$:	cpx	#0	; no errors allowed.
+	bne	12$
+	inc	A0H	; increment track & sec
+	ldx	#0	; set the z stat
+12$:	rts
+
+WrTrackB:
+	ldw	A0,#Buffer	; init track buffer
+	ldb	Sector,#0	; start from sector 0
+10$:	jsr	Wr256B	; write sector
+	bne	11$
+	inc	Sector
+	cpb	Sector,Sectors	; get all sectors to limit
+	bne	10$
+11$:	rts
+
+Wr256B:		;** write 256 bytes to an open file
+10$:	ldy	Byte
+	lda	(A0),y
+	jsr	PutByteF
+	cpx	#0
+	bne	11$
+	inc	Byte
+	bne	10$
+	inc	A0H
+	ldx	#0
+11$:	rts	
+
+;*******************
+;*  BUnPkChk
+;*******************
+
+BUnPkChk:	
+	mvw	$8401,TnS	; initialize GetTrack T&S
+	ldw	Byte,#0	; initialize read byte
+	jsr	DDconfirm
+	beq	10$
+	lda	Temp	; empty temp means OUT
+	beq	13$
+	jmp	GOKbox	; an error, so exit
+10$:	ldw	A7,#OKtxt0
+	ldw	A8,#NOTXT	; set up standard confirm
+	lda	Temp
+	beq	12$
+	cmp	#2	; is it a 1571?
+	bne	11$
+	cbi	TabBlks,#36	; check for 1541->1571
+	bne	11$
+	ldw	A7,#D6txt0
+	ldw	A8,#D6txt1
+11$:	jsr	GODbox
+	beq	12$
+13$:	rts
+12$:	jmp	UnBEP
+
+
+
+;*******************
+;*  DDconfirm
+;*******************
+
+DDconfirm:
+	jsr	SrcSet
+	lda	DestDRV	; get dest drive type
+	jsr	DriveST
+	sta	Temp
+	ldw	A7,#BDtxt0	; drive chk defaults
+	jsr	Read1B	; get format info
+	sta	TabBlks
+10$:	cmp	#36	; is the file for a 1541?
+	bne	11$
+	jmp	UnB1541c
+11$:	cmp	#71	; is the file for a 1571?
+	bne	13$
+	jmp	UnB1571c
+13$:	cmp	#81
+	bne	14$
+	jmp	UnB1581c
+14$:	cmp	#'C'	; check for CMD native
+	bne	16$
+	jmp	UnBCMDc
+16$:	ldw	A7,#NTtxt0	; file in unknown format
+	ldw	A8,#NTtxt1
+17$:	ldx	#1	; return an error
+	rts
+
+
+
+;*******************
+;*  UnB1571c
+;*  UnB1581c
+;*  UnB1541c
+;*  UnBCMDc
+;*******************
+UnB1571c:	ldw	TabPtr,#Tab1571
+	ldw	A8,#BDtxt1
+	cbi	Temp,#2	; and is dest drv a 1571?
+	bne	10$
+	jsr	DestSet	; need to check format
+	ldw	R1,#44
+	ldw	R4,#Buffer	; check by trying track 44
+	jsr	GetBlock
+	cpx	#0
+10$:	rts
+UnB1541c:	ldw	TabPtr,#Tab1541
+	ldw	A8,#D8txt1
+	ldw	A7,#D8txt0
+	cbi	Temp,#1	; and is dest drv a 5.25?
+	beq	10$
+	cmp	#2
+10$:	rts
+UnB1581c:	ldw	TabPtr,#Tab1581	; is dest drive a 1581?
+	ldw	A8,#BDtxt2
+	cbi	Temp,#3
+	rts
+UnBCMDc:	
+	ldw	TabPtr,#TabCMD
+	ldw	A8,#BDtxt3
+	cbi	Temp,#4	; is destination native?
+	bne	17$
+	jsr	Read1B	; get format info
+	sta	TabBlks	; get it for real now
+	cpb	TabBlks,TabCMD+1	; compare blocks
+	beq	17$	; if same, ok
+	bgt	19$	; if TabBlks bigger, fixit
+	mvb	TabBlks,TabCMD+1
+	bra	18$
+19$:	mvb	TabCMD+1,TabBlks
+18$:	ldb	Temp,#0	; flag this state
+	ldw	A7,#CNtxt0	; wrong siZe verify
+	ldw	A8,#CNtxt1
+	jsr	GODbox
+17$:	rts
+
+;*******************
+;*  UnBEP
+;*******************
+
+UnBEP:
+	lda	TabBlks	; put up the progress box
+	jsr	WBsetup
+	lda	#0	; check THIS out? eh?
+	sta	SErr	; init source error flag
+	sta	HalFlag	; init half track flag
+	sta	Oflow	; init overflow byte
+	sta	TSindex	; init T&S table index
+	sta	Tndx	; init LZW table index
+	sta	LZW1st	; init 1st char flag?
+	sta	ZUnBuf	; init output buf #1 index
+	ldb	ZIbit,#8	; init bits to push
+	ldw	ZObyte,#Buffer	; init output pointer?
+	ldb	Track,#1	; initialize dest T&S
+10$:	ldy	TSindex
+	mvw	TabPtr,A0
+	lda	(A0),y
+	beq	12$	; all done!
+	add	#1
+	sta	Sectors	; get track group limit
+	iny
+	lda	(A0),y
+	sta	TrackTo	; num sectors in tracks
+	iny
+	sty	TSindex	; save the table index
+	cpy	#2	; flag for first read
+	jsr	BUnTracks	; unpack these tracks
+	beq	10$
+11$:	jmp	WBcleanup
+12$:	ldw	A0,#DestDRV	; update dest
+	lda	DestDRV
+	jsr	MakeDRV
+	jsr	WBcleanup	; now clean up
+	ldw	A7,#OCtxt0
+	ldw	A8,#NOTXT	; give OK notification
+	jsr	GOKbox
+	jmp	UpdateD	; bye bye!
+
+;*******************
+;*  BUnTracks
+;*******************
+
+BUnTracks:	; ** Unpack some tracks
+	bne	11$
+10$:	jsr	SrcSet
+	jsr	Read2Buf	; fill LZW buffer w/ data
+	bne	13$
+11$:	jsr	ZNFinit	; init end-of-write buffer
+	jsr	UnLZW	; LZW -> track buffer
+	beq	10$	; need more input, not op
+	jsr	DestSet
+	jsr	PutHTrack	; dump the track buffer
+	bne	14$
+	lda	HalFlag	; done with this track?
+	bne	11$
+	jsr	WBupdate	; no, so get another
+	inc	Track
+	cpb	Track,TrackTo	; reached the end?
+	bne	11$	; otherwise, LZW more?
+	ldx	#0	; non error? exit
+12$:	rts
+13$:	cpx	#11	; EOF is an exception!
+	beq	11$
+	mvw	TnS,Temp+15
+	ldy	#1	; regular source
+	jmp	DoError	; error happened
+14$:	mvw	Track,Temp+15
+	ldy	#2	; destination
+	jmp	DoError	; error happened
+
+
+
+;*******************
+;*  ZNFinit
+;*******************
+
+ZNFinit:	ldw	Znuff,#Buffer	; init output limit
+	lda	HalFlag
+	bne	10$
+	ldb	Sectors2,#0	; initialiZed for later
+10$:	lda	Sectors
+	beq	11$
+	cmp	#20
+	ble	12$
+11$:	sub	Sectors2
+	beq	12$
+	cmp	#20	; all others max @ 20
+	blt	13$
+12$:	lda	#20	; remaining case?
+13$:	add	Znuff+1
+	sta	Znuff+1
+	rts	
+
+
+;*******************
+;*  Read1B
+;*  Read2Buf
+;*******************
+
+Read1B:	mvw	TnS,R1	; reload track & sector
+	ldw	R4,#BlkBuf	; official system cache buf
+	mvw	Byte,R5	; restore index info
+10$:	jsr	ReadByte	; get a byte, cached
+	pha
+	mvw	R1,TnS	; restore read T&S
+	mvw	R5,Byte	; restore read index
+	pla
+	rts
+
+Read2Buf:	
+	mvw	TnS,R1	; reload track & sector
+	ldw	R4,#BlkBuf	; official sys cache buf
+	mvw	Byte,R5	; restore index info
+	ldw	ZIbyte,#ZIbuf	; init input pointer
+	lda	Oflow	; skip overflow byte
+	beq	10$
+	ldb	Oflow,#0	; clear overflow again
+	mvw	ZIlimit,A0
+	ldy	#0
+	lda	(A0),y	; move last byte as 1st
+	sta	ZIbuf
+	ldw	A0,#ZIbuf+1	; point ahead of 1st B
+	ldw	ZIlimit,#ZIbuf
+	bra	11$
+10$:	ldw	A0,#ZIbuf	; load work pointers
+	ldw	ZIlimit,#ZIbuf-1
+11$:	avw	#1,ZIlimit
+	jsr	ReadByte	; get a byte, cached
+	ldy	#0
+	sta	(A0),y
+	cpx	#0	; EOF or other error
+	bne	13$
+12$:	avw	#1,A0	; increment & move on
+	cwi	A0,#ZIflow	; filled input buffer?
+	bne	11$
+	ldx	#0	; happy exit	
+13$:	php
+	mvw	R1,TnS	; save read T&S
+	mvw	R5,Byte	; save read index
+	plp
+	rts
+
+;*******************
+;*  UnLZW
+;*******************
+
+UnLZW:	jsr	ZdumpZ	; finish any old output
+	bne	11$
+10$:	ldx	#1	; output buf full, exit!
+	rts		
+11$:	lda	Oflow	; out of input flag set?
+	beq	17$
+	ldx	#0	; out of input exit
+	rts
+17$:	jsr	LZZgc	; get a character
+	jsr	ZfillZ	; put data on ZUnBuf
+	lda	LZW1st
+	bne	12$	; handle empty table
+	inc	LZW1st
+	ldb	Tndx,#0	; reason not to do ZfillZ
+	bra	14$
+12$:	ldx	Tndx	; get table index
+	inx
+	cpx	#$fe	; is it now full?
+	bne	13$	; yes, so add nothing
+	ldb	LZW1st,#0	; clear 1st char again
+	bra	14$
+13$:	stx	Tndx	; save, adjust table index
+	dex
+	lda	W
+	sta	T0a,x
+	lda	W+1	; add table entry
+	sta	T0b,x
+	lda	Zfst
+	sta	T0c,x
+14$:	mvw	C,W	; make last entry
+	jmp	UnLZW	; continue (chks above!)
+
+
+;********************
+;* LZZasl
+;* LZZgc
+;* LZZputC
+;********************
+
+LZZasl:	.byte	$0e	; asl
+ZIbyte:	.word	$ffff	; input buffer location
+	php
+	dec	ZIbit	; remaining bits/this byte
+	bne	10$
+	avw	#1,ZIbyte	; pull bits from next byte
+	ldb	ZIbit,#8	
+	cpw	ZIbyte,ZIlimit	; last effective byte
+	bne	10$
+	ldb	Oflow,#1	; set overflow flag
+10$:	plp
+	rts
+
+LZZgc:	ldb	C,#0	; shift off coded char
+	jsr	LZZasl
+	rol	C	; get table flag bit
+	ldy	#8
+10$:	jsr	LZZasl	; now get code/char
+	rol	C+1
+	ylp	10$
+	rts
+
+LZZputC:	.byte	$8d	; sta
+ZObyte:	.word	$ffff	; yup
+	avw	#1,ZObyte
+	cpw	ZObyte,Znuff	; Znuff iz written
+	rts
+
+;*******************
+;*  ZdumpZ
+;*  ZfillZ
+;*******************
+
+ZdumpZ:	ldy	ZUnBuf	; restore index
+	bne	10$	; empty, so exit
+	ldx	#1	; NE = OK, EQ = FULL
+	rts
+10$:	lda	ZUnBuf,y	; get letter from end
+	jsr	LZZputC	; output letter
+	php		; save fullness flags
+	dey
+	beq	11$
+	plp		; no more to do, exit!
+	bne 10$	; continue if possible
+	php
+11$:	sty	ZUnBuf	; save new index
+	plp
+	rts
+
+ZfillZ:	ldy	#0	; clear index to ZUnBuf
+	lda	C	; is thing a code?
+	bne	10$
+	lda	C+1	; no, so push char
+	bra	12$
+10$:	ldx	C+1	; check for kwkwk case
+	cpx	Tndx
+	bne	13$
+	lda	W+1		; yes, so fetch last thing
+	ldx	W	; was last thing a code?
+	bne	11$
+	iny		; no, so push char 2nd
+	sta	ZUnBuf+2
+	bra	12$
+11$:	tax		; set up the code
+	iny		; protect 1st (last) place
+	jsr	Zfill2	; decode the rest
+	dey		; no need to do this now
+12$:	iny		; make room for 1st char
+	sty	ZUnBuf
+	sta	ZUnBuf+1	; no, a letter, so exit
+	sta	Zfst
+	rts
+13$:
+Zfill2:	lda	T0c,x	; pull letter of code
+	iny
+	sta	ZUnBuf,y
+	lda	T0a,x	; is this code a code?
+	bne	10$
+	lda	T0b,x	; no, so save and exit
+	iny
+	sty	ZUnBuf	; save first char, exit
+	sta	ZUnBuf,y
+	sta	Zfst
+	rts
+10$:	lda	T0b,x	; yes, so fetch next...
+	tax
+	jmp	Zfill2	
+
+;*******************
+;*  PutHTrack
+;*******************
+
+PutHTrack:	;** write half a track (or so) of data out
+	ldw	ZObyte,#Buffer
+	ldw	R4,#Buffer
+	lda	HalFlag	; written 1st half?
+	bne	14$
+	ldb	Sector,#0
+14$:	mvb	Sector,Sectors2	; adjust new mid-point
+	avb	#20,Sectors2
+10$:	jsr	PutBLK	; put a sector
+	bne	11$
+	inc	Sector
+	cpb	Sector,Sectors	; put all sectors to limit
+	beq	12$	
+	cpb	Sector,Sectors2	; mid-way (21st buf blk)
+	bne	10$
+	inc	HalFlag
+	bne	13$	; fix the half-flag
+12$:	ldb	HalFlag,#0
+13$:	ldx	#0
+11$:	rts
+
+;*******************
+;*  BPakChk
+;*******************
+
+BPakChk:	jsr	DestSet
+	jsr	OpenDisk	; get dest blks free
+	cpx	#0
+	bne	16$	; file opening error?
+	ldw	R5,#$8200
+	jsr	CalcBlksFree
+	mvw	R4,Temp	; save blks free in temp
+	ldb	Fname,#0	; clear filename out
+	ldw	R0,#FNMdbox	; get filename dialog box
+	ldw	A4,#Fname	; position for fname
+	jsr	DoDlgBox	; get dest filename
+	cbi	sysDBData,#2	; cancel hit?
+	bne	11$
+10$:	rts
+11$:	ldw	A0,#Fname
+	lda	Fname
+	beq	10$	; null filename = exit
+	ldw	A1,#BEPext
+	jsr	AppString	; add extension
+	jsr	FnamUpp	; make uppercase
+	cwi	Temp,#20
+	bgt	14$	; need 20? blks free
+	ldw	A7,#NBtxt0
+	ldw	A8,#NBtxt1	; report not enuff blks
+	jmp	GOKbox
+14$:	jsr	CreateCF	; now create file
+	beq	15$
+16$:	mvw	TnS,Temp+15
+	txa
+	pha
+	mvw	TnS,Temp+15
+	ldw	A7,#ERtxt1	; error creating file
+	ldw	A8,#ERtxt2
+	jsr	GOKbox
+	pla
+	tax
+	rts
+15$:	ldw	WObyte,#WObuf	; set up output buffer
+	jmp	DoPakBEP	; get started!
+
+BEPext:	.byte	".BEP",0
+
+
+
+;*******************
+;*  BEPconfirm
+;*******************
+BEPconfirm:
+	ldw	A7,#OKtxt1	; standard confirm
+	ldw	A8,#NOTXT
+	ldw	TabPtr,#Tab1541	; default 1541 table, tracks
+	ldb	TabBlks,#36
+	lda	SrcDRV
+	jsr	DriveST	; get drive type
+	cmp	#1
+	beq	10$	; is 1541, so continue
+	cmp	#2
+	beq	11$	; is 1571, so jump ahead
+	cmp	#3	; check for '81
+	beq	12$
+	cmp	#4
+	beq	13$
+13$:	lda	TabCMD+1
+	sta	TabBlks
+	ldw	TabPtr,#TabCMD	; load CMD table in
+	mvw	WObyte,A2	; for temporary writing
+	ldy	#0
+	lda	#'C'	; Native requires code
+	sta	(A2),y
+	inw	WObyte
+	bra	10$
+12$:	ldw	TabPtr,#Tab1581	; load 1581 table in
+	ldb	TabBlks,#81
+	bra	10$
+11$:	jsr	SrcSet	; drive to check
+	ldw	R1,#42	; start 1571 condition
+	ldw	R4,#Buffer
+	jsr	GetBlock	; test for DS disk
+	cpx	#0
+	bne	10$	; is SS 1541, so continue
+	ldw	TabPtr,#Tab1571
+	ldb	TabBlks,#71	; is DS 1571, so change..
+10$:	jmp	GODbox
+
+;*******************
+;* DoPakBEP
+;*******************
+
+DoPakBEP:	
+	jsr	BEPconfirm	; get user's OK
+	beq	10$	; get start confirm
+	jsr	DestSet
+	ldw	R0,#Fname
+	jmp	DeleteFile	; remove file, exit
+10$:	lda	#0	; this is cool
+	sta	Oflow	; initialize overflow flag	
+	sta	Tndx	; initialize table index
+	sta	LZW1st	; first LZW byte flag
+	sta	T0chk	; init table speed-checker
+	sta	TSindex
+	ldb	WObit,#8	; set up output bit ptr
+	ldb	Track,#1	; initialize Source Track
+	mvw	WObyte,A2	; for temporary writing
+	ldy	#0
+	lda	TabBlks	; expected tracks
+	sta	(A2),y	; usually drive type
+	inw	WObyte
+	jsr	WBsetup
+11$:	mvw	TabPtr,A2
+	ldy	TSindex	; start a track clump
+	lda	(A2),y	; read sectors
+	beq	13$	; 0, so done
+	add	#1
+	sta	Sectors
+	iny
+	lda	(A2),y	; read track limit
+	sta	TrackTo
+	iny
+	sty	TSindex
+	jsr	BPkTracks	; pack these tracks
+	bne	12$
+	beq	11$
+16$:	mvw	TnS,Temp+15
+	ldy	#2
+	jsr	DoError
+	bra	12$
+12$:	jsr	DestSet
+	jsr	CloseCF	; update disk
+	ldw	R0,#Fname
+	jsr	DeleteFile	; remove file
+	jmp	WBcleanup
+13$:	jsr	LZWpw	; push final W
+14$:	cbi	WObit,#8
+	beq	15$	; now fill final byte
+	clc
+	jsr	LZWrol	; roll zeroes on board
+	bra	14$
+15$:	jsr	DestSet
+	jsr	BEPBufW	; dump rest of buffer
+	bne	16$
+	jsr	CloseCF	; close file, done
+	bne	16$
+	ldw	A0, #DestDRV	; update destination
+	lda	DestDRV
+	jsr	MakeDRV
+	jsr	WBcleanup
+	ldw	A7,#OCtxt0	; say yer done.
+	ldw	A8,#NOTXT
+	jsr	GOKbox
+	jmp	UpdateD	; be done.
+
+;********************
+;* BPkTracks
+;********************
+
+BPkTracks:	
+	ldb	HalFlag,#0	; first half of track
+15$:	jsr	SrcSet	; reset for reading
+	jsr	BRdHTr	; read in half track
+	bne	11$	; away on errors
+16$:	jsr	LZW	; pack/load mid-buffer
+	beq	13$	; buffer full? no=dump
+	jsr	DestSet	; set up for writing
+	jsr	BEPBufW	; dump the buffer
+	bne	12$	; destination error
+	bra	16$	; finish LZW work
+13$:	lda	HalFlag
+	bne	15$	; new track needed?
+	jsr	WBupdate
+	inc	Track
+	cpb	Track,TrackTo	; continue till track limit
+	bne	15$
+	ldx	#0	; return no errors!
+	rts
+11$:	mvw	Track,Temp+15
+	ldy	#1	; return SRC error
+	jmp	DoError
+12$:	mvw	TnS,Temp+15
+	ldy	#2	; return DEST error
+	jmp	DoError
+
+;********************
+;* BRdHTr
+;********************
+
+BRdHTr:	ldw	WIbyte,#Buffer-1	; read half a track or so
+	ldw	WIlimit,#Buffer	; watch amount read
+	ldw	A0,#Buffer
+	lda	HalFlag	; read 1st half?
+	bne	14$
+	ldb	Sector,#0
+14$:	mvb	Sector,Sectors2	; set up mid-point
+	avb	#20,Sectors2
+10$:	jsr	ReadSector	; get a sector
+	bne	11$
+	inc	Sector
+	inc	WIlimit+1
+	cpb	Sector,Sectors	; get all sectors to limit
+	beq	12$	
+	cpb	Sector,Sectors2	; mid-way (21st buf blk)
+	bne	10$
+	inc	HalFlag
+	bne	13$	; fix half-flag
+12$:	ldb	HalFlag,#0
+13$:	ldx	#0
+11$:	rts
+
+
+;********************
+;* LZW
+;********************
+
+LZW:	lda	LZW1st	; handle 1st char case
+	bne	10$
+	inc	LZW1st	; first byte is special
+	ldb	W,#0
+	ldw	WIbyte,#Buffer	; push out 1st byte
+	mvb	Buffer,W+1		
+10$:	lda	Oflow	; is output buffer full?
+	beq	11$
+	lda	#1	; full buffer exit
+	rts		
+11$:	avw	#1,WIbyte
+	cpw	WIbyte,WIlimit	; finished the T&S's?
+	bne	12$
+	lda	#0	; need more sectors exit
+	rts
+12$:	jsr	LZWgetC	; get a char
+	ldx	T0chk
+14$:	cpx	Tndx	; checked whole table
+	beq	17$
+	lda	W
+	cmp	T0a,x	; check W
+	bne	16$
+	lda	W+1
+	cmp	T0b,x	; check W+1
+	bne	16$
+	lda	C
+	cmp	T0c,x	; check char C
+	bne	16$
+	stx	W+1	; found! set up new W
+	ldb	W,#128
+	inx
+	stx	T0chk
+	bra	11$	; continue looping
+16$:	inx		; check rest of table
+	bne	14$
+17$:	jsr	LZWpw	; put W on out buf
+	ldx	Tndx
+	inx
+	cpx	#$ff	; is table full?
+	bne	18$
+	ldb	Tndx,#0
+	bra	19$
+18$:	stx	Tndx	; now add to table
+	dex
+	lda	W
+	sta	T0a,x	; add W+C to table
+	lda	W+1
+	sta	T0b,x
+	lda	C
+	sta	T0c,x
+19$:	mvb	C,W+1	; make C new W
+	ldb	W,#0
+	sta	T0chk
+	jmp	LZW	; do it all again!
+
+;********************
+;* LZWgetC
+;* LZWrol
+;* LZWpw
+;********************
+
+LZWgetC:	.byte	$ad	; lda
+WIbyte:	.word	$ffff	; T&S buffer location
+	sta	C	; get a character 
+	rts
+
+LZWrol:	.byte	$2e	; rol
+WObyte:	.word	$ffff	; output buffer location
+	dec	WObit
+	bne	10$
+	avw	#1,WObyte	; set up next byte
+	ldb	WObit,#8
+	cwi	WObyte,#WOflow	; fill the buffer?
+	bne	10$
+	ldb	Oflow,#1	; yes, so set flag
+10$:	rts
+
+LZWpw:	lda	W	; add to table routine
+	asl	a
+	jsr	LZWrol	; add table flag	
+	lda	W+1
+	sta	WOflow+9
+	ldy	#8
+10$:	asl	WOflow+9	; now add code/char
+	jsr	LZWrol
+	ylp	10$
+	rts
+
+;********************
+;* BEPBufW
+;********************
+
+BEPBufW:	
+	mvw	WObyte,A2	; up to, not over WOflow
+	ldw	A0,#WObuf	; start from top
+	ldw	WObyte,#WObuf
+10$:	ldy	#0
+	lda	(A0),y	; start outputting bytes
+	jsr	PutByteF
+	bne	12$
+	avw	#1,A0	; reached the end 	yet?
+	cpw	A0,A2
+	bne	10$	; nope, so loop
+	lda	Oflow
+	beq	11$	; was buffer full before?
+	mvb	WOflow,WObuf	; yes, so reset buffer
+	ldb	Oflow,#0
+11$:	ldx	#0
+12$:	rts
+	rts
+
+HexB:	sta	Temp+14
+	lsr	a
+	lsr	a
+	lsr	a
+	lsr	a	; get the high nibble
+	tay
+	lda	HexTable,y
+	ldy	#0
+	sta	(A2),y	; store the high nibble digit
+	lda	Temp+14	; error in Temp+17
+	and	#$0f	; mask out low nibble
+	tay
+	lda	HexTable,y	; gimmi a digit
+	ldy	#1
+	sta	(A2),y	; store the low nibble digit
+	rts			
+
+HexTable:	.byte	'0','1','2','3','4','5','6','7','8','9','a','b','c','d','e','f'
+HexBuf:	.byte	'$',0,0,0,0,0,0
+</pre></body></html>

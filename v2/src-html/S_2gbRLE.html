@@ -1,0 +1,415 @@
+<!DOCTYPE html><html><head><title>Untitled</title></head><body><pre>
+;*****************************
+;*
+;*         geoBEAP II
+;* "Bo's Excellent Archive Program"
+;*
+;*      (C) 2001 Bo Zimmerman
+;*
+;*  Dedicated to Naomi Zimmerman
+;*****************************
+.if 	Pass1
+.noeqin
+.noglbl
+.include	GEOSequates
+.eqin
+.glbl
+.endif
+
+.psect
+	jmp	Go2RLE	; VPRGbase + 0
+
+Go2RLE:	cpb	SrcDrv,DstDrv
+	bne	10$
+	jsr	i_CNCLBox
+	.word	t2txt0
+	rts
+10$:	lda	PackUnpack
+	beq	11$
+	jmp	Go2Unpack
+11$:	jmp	Go2Pack
+t2txt0:	.byte	"Source and Dest. must be different!",27,0
+
+;****************************************************
+Go2Unpack:
+	lda	DstDrv
+	jsr	SecIOinit
+	cpx	#0
+	beq	10$
+	jmp	DiskError
+10$:	lda	SrcDrv
+	jsr	SetDevice
+	jsr	GetFirstFile	; get a filename
+	cpx	#$00
+	bne	11$
+	jmp	Co22
+11$:	jsr	i_CNCLBox
+	.word	t2NoFile
+	jmp	HappyEnd
+Co2Unpack:	lda	SrcDrv
+	jsr	SetDevice
+	jsr	GetNxtFile
+	cpx	#$00
+	beq	Co22
+	jsr	i_OKBox
+	.word	t2Done
+	jmp	HappyEnd
+Co22:	mvw	A0,File	; now examine its disk entry
+	mvw	File,R6
+	ldb	$886e,#$ff
+	jsr	FindFile
+	cpx	#0	; did we find the file?
+	beq	11$
+	jmp	DiskError
+11$:	ldy	#$15
+	lda	(R5),y	; is it sequential type?
+	beq	12$
+	jsr	i_CNCLBox	; no, so exit
+	.word	t2BadFile
+	jmp	HappyEnd
+12$:	mvw	File,A2
+	ldb	A3L,#0
+	jsr	OpenSF	; and open the file
+	cpx	#0
+	beq	13$
+16$:	jmp	DiskError
+13$:	ldw	A2,#t2Ready
+	jsr	DoNxtD	; confirm the whole process now
+	cbi	sysDBData,#$03
+	beq	14$		; ready to go!
+	jmp	HappyEnd
+14$:	jmp	DoUnRLE
+t2Done:	.byte	$18,"Operation Complete",27,0
+t2NoFile:	.byte	$18,"Select a file to unpack.",27,0
+t2BadFile:	.byte	$18,"File is not a .RLE image!",27,0
+t2Ready:	.byte	$18,"Ready to unpack .RLE image?",27,0
+
+DoUnRLE:	ldb	TRACK,#1
+	ldb	SECTOR,#0
+	sta	TrksDone
+11$:	ldw	LastMem,#$6000
+	jsr	UnRLE	; RLE data -> track buffer
+	stx	LastError
+	cpx	#0
+	beq	15$
+	cpx	#11
+	beq	15$
+	jmp	DiskError
+14$:	jsr	Imprint
+	jmp	Co2Unpack	; happy exit	
+15$:	mvw	TRACK,TNSTRACK
+	jsr	TnSBar
+	mvw	LastMem,A3
+	ldw	LastMem,#$6000
+	ldw	A2,#$6000
+	lda	LastError
+	bne	17$
+	dew	A3
+17$:	jsr	WriteSecs
+	cpx	#0
+	bne	13$
+	lda	LastError
+	beq	11$
+	bne	16$
+13$:	cpx	#$28
+	bge	16$
+	jmp	DiskError
+16$:	jsr	Imprint
+	jmp	Co2Unpack	; happy exit
+
+UnRLE:
+10$:	jsr	GetSByte
+	cpx	#0
+	beq	11$
+	rts
+11$:	sta	RLEcode
+	cmp	#$81
+	bcs	20$
+12$:	mvw	LastMem,A3
+	jsr	GetSByte	; worry about EOF???!!!
+	ldy	#0
+	sta	(A3),y
+	inw	LastMem
+	cpx	#0
+	beq	13$
+	rts
+13$:	dec	RLEcode
+	bne	12$
+	cwi	LastMem,#$7800
+	blt	10$
+	ldx	#0
+	rts
+20$:	lda	RLEcode	; start repeat state
+	and	#$7f	; by decreasing by $80
+	sta	RLEcode
+	jsr	GetSByte
+	sta	RLEbyte
+21$:	mvw	LastMem,A3
+	ldy	#0
+	lda	RLEbyte
+	sta	(A3),y
+	inw	LastMem
+	dec	RLEcode
+	bne	21$
+	cpx	#0
+	beq	22$
+	rts
+22$:	cwi	LastMem,#$7800
+	bge	23$
+	jmp	UnRLE
+23$:	ldx	#0
+	rts
+
+;****************************************************
+Go2Pack:	lda	SrcDrv
+	jsr	SecIOinit
+	cpx	#0
+	beq	10$
+	jmp	DiskError
+10$:	ldw	A4,#FileName
+	lda	#12
+	jsr	GetFilename
+	bne	11$
+99$	rts
+11$:	lda	FileName
+	beq	99$
+12$:	jsr	ChkOkPack
+	bne	99$
+	jsr	FixFNam
+	lda	DstDrv
+	jsr	SetDevice
+	jsr	OpenDisk
+	ldw	A2,#FileName
+	ldb	A3L,#$02
+	jsr	CreatSF
+	cpx	#0
+	beq	13$
+	jmp	DiskError
+13$:	jmp	DoPakRLE
+
+
+
+; ** check to see if the source drive can be packed
+ChkOkPack:	lda	SrcDrv
+	jsr	DriveST
+	sta	DrvType
+	cmp	#1	; 1541 drive
+	beq	10$
+	cmp	#2	; 1571 drive
+	bne	16$
+	lda	SrcDrv
+	jsr	SetDevice
+	ldw	R4,#$6000
+	ldb	R1L,#40
+	ldb	R1H,#0
+	jsr	GetBlock
+	cpx	#0
+	beq	11$
+	ldb	DrvType,#1
+	bra	10$
+16$:	cmp	#3	; 1581 drive
+	beq	12$
+	ldw	A4,#660	; "cmd" drive
+	ldb	DrvType,#'C'
+	bra	13$
+10$:	ldw	A4,#500	; .D64
+	ldb	DrvType,#36
+	bra	13$
+11$:	ldw	A4,#1000	; .D71
+	ldb	DrvType,#71
+	bra	13$
+12$:	ldw	A4,#2500	; .D81
+	ldb	DrvType,#81
+13$:	lda	DstDrv
+	jsr	SetDevice
+	jsr	GetDirHead
+	ldw	R5,#$8200
+	jsr	CalcBlksFree
+	cpw	R4,A4
+	blt	15$	
+	ldx	#0
+99$:	rts
+15$:	jsr	i_CNCLBox
+	.word	t2NoBlks
+	ldx	#1
+	rts	
+t2NoBlks:	.byte	$18,"Not enough space on dest.",27,0
+
+FixFNam:	ldw	A0,#FileName
+10$:	ldy	#0
+	lda	(A0),y
+	beq	16$
+	cmp	#'.'
+	bne	15$
+	inw	A0
+	lda	(A0),y
+	beq	16$
+	cmp	#'R'
+	beq	11$
+	cmp	#'r'
+	bne	15$
+11$:	rts
+15$:	inw	A0
+	bra	10$
+	rts
+16$:	ldw	A4,#t2fnExt	; needs extension
+17$:	lda	(A4),y	; copy extension
+	sta	(A0),y
+	beq	11$
+	iny
+	bne	17$
+	rts
+t2fnExt:	.byte	".RLE",0
+
+DoPakRLE:	ldb	TRACK,#1
+	ldb	SECTOR,#0
+10$:	mvw	TRACK,TNSTRACK
+	jsr	TnSBar
+	ldw	A2,#$6000
+	mvw	A2,LastTnS
+	ldw	A3,#$77ff
+	jsr	ReadSecs
+	mvw	A2,LastBlk
+	stx	LastError
+	mvw	TRACK,TNSTRACK
+	jsr	TnSBar
+	ldx	LastError
+	cpx	#0
+	beq	13$
+	cpx	#2
+	beq	13$
+	cpx	#11
+	beq	13$
+	cpx	#$ff
+	beq	13$
+12$:	jmp	DiskError
+13$:	jsr	DoRLE	; dump rest of buffer
+	bne	12$
+	lda	LastError
+	beq	10$
+	ldb	A2L,#130
+	jsr	ClosSF
+	jsr	Imprint
+	jsr	i_OKBox
+	.word	t2Done
+	jmp	HappyEnd
+
+
+DoRLE:	ldb	BufOffset,#0
+	mvw	LastTns,A2
+	ldw	A3,#RLEbuf
+44$:	ldb	Repeats,#0
+	ldy	BufOffset
+	lda	(A2),y
+	ldy	#1
+	sta	(A3),y
+	sty	RLEcode
+	sty	RLEoffset
+	inc	BufOffset
+	beq	55$
+	jsr	RLEloop
+	beq	44$
+55$:	ldy	#0
+	lda	RLEcode
+	sta	(A3),y
+	inc	RLEoffset
+	adw	RLEoffset,A3
+	mvw	A2,LastTns
+	ldw	A2,#RLEbuf
+	dew	A3
+	jsr	PutSMem
+	cpx	#0
+	beq	10$
+	rts
+10$:	inc	LastTns+1
+	cpw	LastTns,LastBlk
+	blt	11$
+	ldx	#0
+	rts
+11$:	jmp	DoRLE
+	
+
+RLEloop:	ldy	BufOffset	; now read next character
+	bne	10$
+	ldx	#1	; done with block
+	rts
+10$:	inc	BufOffset	; ALWAYS increment read character
+	lda	(A2),y	; store it in...
+	ldy	RLEoffset
+	iny
+	sta	(A3),y	; NEXT rle position
+	dey
+	cmp	(A3),y	; and compare it to previous
+	beq	50$	; this will mean a repetition
+	ldb	Repeats,#0
+	cbi	RLEcode,#$80	; NONREPETITION cases. repeating NOW?
+	bge	20$	; yes, so end the repetition
+	cmp	#$80	; have we filled nonrepetition cases?
+	beq	20$	; if yes, then go start a new one
+	inc 	RLEoffset	; still nonrepeating, prepare next RLE
+	inc	RLEcode	; and increment RLE nonrep counter
+	jmp	RLEloop	; and go for more
+20$:	ldy	#0	; NOW, end nonrep by writing
+	lda	RLEcode	; out the current RLE code counter
+	sta	(A3),y
+	dec	BufOffset	; forget we read this
+	inc	RLEoffset
+	adw	RLEoffset,A3 ; update the RLEbuffer pointer
+	ldx	#0	; more INPUT
+	rts
+50$:	inc	Repeats
+	cbi	RLEcode,#$80	; are we full of nonrepetitions?
+	beq	20$
+	cmp	#$81	; REPETITION cases, repeating now?
+	bcc	55$	; no, so convert it..
+	cmp	#$ff	; repeating, but too many?
+	beq	20$
+	inc	RLEcode	; increment the counter
+	jmp	RLEloop	; and continue
+55$:	cmp	#$01	; we have more than one nonrep?
+	bne	57$
+56$:	lda 	RLEcode	; only one nonrep, so easy!
+	add	#$81	; add one, and make REPEATING
+	sta	RLEcode	; to convert to repetition
+	jmp	RLEloop	; and go get some more
+51$:	bra	20$
+57$:	cmp	#$02	; have we seen three now?
+	bne	59$	; no, so keep going...
+	lda	Repeats	; two or more, but num repeats?
+	cmp	#2
+	bcs	56$	; two chars but all repeats! yeah!
+58$:	inc 	RLEoffset	; still nonrepeating, prepare next RLE
+	inc	RLEcode	; and increment RLE nonrep counter
+	jmp	RLEloop	; and go for more			
+59$:	lda	Repeats
+	cmp	#2
+	bcc	58$
+	dec	RLEcode	; forget your last character
+	dec	RLEcode
+	dec	RLEoffset
+	dec	RLEoffset
+	dec	BufOffset	; even the one you read (first repeat)
+	dec	BufOffset
+	bra	51$	; and close/restart as normal
+
+.ramsect
+File:	.block	2
+BytesWritten:	.block	2
+TrksDone:	.block	1
+DrvType:	.block	1
+DrvMax:	.block	1
+LastError:	.block	1
+OtherLast:	.block	1
+ProgOffset:	.block	1
+LastBlk:	.block	2
+LastTnS:	.block	2
+LastMem:	.block	2
+RLEcode:	.block	1
+RLEbyte:	.block	1
+Repeats:	.block	2
+BufOffset:	.block	2
+RLEOffset:	.block	2
+RLEbuf:	.block	512
+
+
+</pre></body></html>

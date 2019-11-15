@@ -1,0 +1,873 @@
+<!DOCTYPE html><html><head><title>Untitled</title></head><body><pre>
+;*****************************
+;*
+;*         geoBEAP II
+;* "Bo's Excellent Archive Program"
+;*
+;*      (C) 2001 Bo Zimmerman
+;*
+;*  Dedicated to Naomi Zimmerman
+;*****************************
+.if 	Pass1
+.noeqin
+.noglbl
+.include	GEOSequates
+.eqin
+.glbl
+.endif
+
+.psect
+	jmp	Go2Z4	; VPRGbase + 0
+
+Go2Z4:	cpb	SrcDrv,DstDrv
+	bne	10$
+	jsr	i_CNCLBox
+	.word	t2txt0
+	rts
+10$:	lda	PackUnpack
+	beq	11$
+	jmp	Go2Unpack
+11$:	jmp	Go2Pack
+t2txt0:	.byte	"Source and Dest. must be different!",27,0
+
+;****************************************************
+Go2Unpack:
+	lda	DstDrv
+	jsr	SecIOinit
+	cpx	#0
+	bne	10$
+	lda	DstDrv
+	jsr	DriveST
+	cmp	#2
+	ble	11$
+	jsr	i_OKBox
+	.word	t2No41
+	jmp	HappyEnd
+10$:	jmp	DiskError
+11$:	lda	SrcDrv
+	jsr	SetDevice
+	jsr	GetFirstFile	; get a filename
+	cpx	#$00
+	bne	12$
+	jmp	StartUnZ4
+12$:	jsr	i_CNCLBox
+	.word	t2NoFile
+	jmp	HappyEnd
+Co2Unpack:	lda	SrcDrv
+	jsr	SetDevice
+	jsr	GetNxtFile
+	cpx	#$00
+	bne	10$
+	jmp	StartUnZ4
+10$:	jsr	i_OKBox
+	.word	t2Done
+	jmp	HappyEnd
+t2No41:	.byte	$18,"Dest. drive not a 1541/1571.",27,0 
+
+StartUnZ4:	mvw	A0,File
+	mvw	A0,FnamPtr
+	jsr	UnFixFile
+	beq	10$
+	jsr	NewSrc
+	jmp	HappyEnd
+10$:	ldw	A2,#t2Ready
+	jsr	DoNxtD	; confirm the whole process now
+	cbi	sysDBData,#$03
+	beq	14$		; ready to go!
+	jmp	HappyEnd
+14$:	nop
+ContUnZ4:	lda	SrcDrv
+	jsr	SetDevice
+	jsr	OpenDisk
+	jsr	FixFNam2
+	jsr	FixTrkList
+	bne	10$
+	jsr	Imprint
+	jmp	Co2Unpack
+10$:	mvw	FnamPtr,R6
+	ldb	$886e,#$ff
+	jsr	FindFile
+	cpx	#0	; did we find the file?
+	beq	11$
+	jsr	Imprint
+	jsr	i_OKCANBox	; confirm the next source
+	.word	t2NewSrc
+	cbi	sysDBData,#$01
+	beq	10$		; ready to go!
+	jmp	HappyEnd
+11$:	ldy	#$15
+	lda	(R5),y	; is it sequential type?
+	beq	12$
+	jsr	i_CNCLBox	; no, so exit
+	.word	t2BadFile
+	jmp	HappyEnd
+12$:	mvw	FnamPtr,A2
+	ldb	A3L,#0
+	jsr	OpenSF	; and open the file
+	cpx	#0
+	beq	13$
+16$:	jmp	DiskError
+13$:	jsr	DoUnZ4
+	cpx	#0
+	bne	15$
+	jmp	ContUnZ4
+15$:	cpx	#1
+	bne	17$
+	jsr	Imprint
+	jmp	Co2Unpack
+17$:	jmp	DiskError
+t2Done:	.byte	$18,"Operation Complete",27,0
+t2NoFile:	.byte	$18,"Select a file to unpack.",27,0
+t2BadFile:	.byte	$18,"File isn't 1st Zipcode image!",27,0
+t2Ready:	.byte	$18,"Ready to unZipcode images?",27,0
+t2NewSrc:	.byte	$18,"Insert next volume disk.",27,0
+
+UnFixFile:	mvw	FnamPtr,A2
+	ldw	A3,#FileName+2
+	ldy	#0
+10$:	lda	(A2),y
+	sta	(A3),y
+	beq	11$
+	iny
+	bne	10$
+11$:	lda	FileName+3
+	cmp	#'!'
+	bne	14$
+13$:	lda	FileName+2
+	cmp	#'1'
+	beq	15$
+14$:	jsr	i_CNCLBox
+	.word	t2BadFile
+	ldx	#$ff
+	rts
+15$:	ldb	FileName+2,#'0'
+	ldw	FnamPtr,#FileName+2
+	ldx	#0
+	rts
+
+
+FixTrkList:	mvw	FnamPtr,A0
+	ldy	#0
+	lda	(A0),y
+	cmp	#'1'
+	bne	10$
+	ldb	StartTrk,#1
+	ldb	LastTrk,#8
+	ldx	#1
+	rts
+10$:	cmp	#'2'
+	bne	11$
+	ldb	StartTrk,#9
+	ldb	LastTrk,#16
+	ldx	#1
+	rts
+11$:	cmp	#'3'
+	bne	12$
+	ldb	StartTrk,#17
+	ldb	LastTrk,#25
+	ldx	#1
+	rts
+12$:	cmp	#'4'
+	bne	13$
+	ldb	StartTrk,#26
+	ldb	LastTrk,#35
+	ldx	#1
+	rts
+13$:	ldx	#0
+	rts
+
+
+
+SetMaxSecs:	ldb	MaxSecs,#20
+	ldw	LastMem,#$74ff
+	ldw	OrdPtr,#OrdBuf1
+	cbi	TRACK,#17
+	ble	10$
+	ldb	MaxSecs,#18
+	ldw	LastMem,#$72ff
+	ldw	OrdPtr,#OrdBuf2
+	cbi	TRACK,#24
+	ble	10$
+	ldb	maxSecs,#17
+	ldw	LastMem,#$71ff
+	ldw	OrdPtr,#OrdBuf3
+	cbi	TRACK,#30
+	ble	10$
+	ldb	MaxSecs,#16
+	ldw	LastMem,#$70ff
+10$:	ldy	#30
+	lda	#0
+	sta	SecList
+11$:	sta	SecList,y
+	ylp	11$
+	rts
+OrdBuf1:	.byte	0,11,1,12,2,13,3,14,4,15,5,16,6,17,7,18,8,19,9,20,10
+OrdBuf2:	.byte	0,10,1,11,2,12,3,13,4,14,5,15,6,16,7,17,8,18,9
+OrdBuf3:	.byte	0,9,1,10,2,11,3,12,4,13,5,14,6,15,7,16,8,17
+
+
+Get1stBytes:	mvw	FnamPtr,A0
+	ldy	#0
+	lda	(A0),y
+	cmp	#'1'
+	bne	20$
+	ldb	Repeats,#4
+10$:	jsr	GetBByte
+	cpx	#0
+	bne	99$
+	dec	Repeats
+	bne	10$
+	ldx	#0
+99$:	rts
+20$:	ldb	Repeats,#2
+	bra	10$
+
+GetBByte:	cwi	Z4LastB,#Z4buf
+	bne	20$
+10$:	ldw	A2,#Z4buf
+	ldw	A3,#Z4bufE-1
+	ldw	Z4ThisB,#Z4buf
+	jsr	GetSMem
+	mvw	A2,Z4LastB
+	cpx	#0
+	beq	20$
+	cpx	#11
+	beq	20$
+	rts
+20$:	cpw	Z4ThisB,Z4LastB
+	bgt	10$
+	mvw	Z4ThisB,A2
+	ldy	#0
+	lda	(A2),y
+	inw	Z4ThisB
+	ldx	#0
+	rts
+
+DoUnZ4:	ldw	Z4LastB,#Z4buf
+	ldw	Z4ThisB,#Z4buf
+	jsr	Get1stBytes
+	beq	10$
+	rts
+10$:	mvb	StartTrk,TRACK
+DoUnZ42:	ldb	SECTOR,#0
+	mvw	TRACK,TNSTRACK
+	jsr	TnSBar
+	jsr	SetMaxSecs
+	ldb	SecLp,#0
+10$:	jsr	UnZ4
+	cpx	#0
+	beq	11$
+	rts
+11$:	inc	SecLp
+	cpb	SecLp,MaxSecs
+	ble	10$
+	ldw	A2,#$6000
+	mvw	LastMem,A3
+	mvw	TRACK,LastTnS
+	ldb	SECTOR,#0
+	jsr	WriteSecs
+	mvw	LastTnS,TRACK
+	cpx	#0
+	beq	12$
+	cpx	#$ff
+	beq	12$
+	rts		; error exit
+12$:	inc	TRACK
+	cpb	TRACK,LastTrk
+	bgt	13$
+	jmp	DoUnZ42
+13$:	cbi	LastTrk,#34
+	bgt	14$
+	ldx	#0	; done with group exit
+	rts
+14$:	ldx	#1	; done altogether exit
+	rts
+
+UnZ4:	jsr	GetBByte
+	cpx	#0
+	beq	10$
+	rts
+10$:	sta	CheckTrk
+	jsr	GetBByte
+	cpx	#0
+	beq	11$
+	rts
+11$:	sta	SECTOR
+	cpb	SECTOR,MaxSecs
+	ble	13$
+12$:	ldx	#2
+	rts
+13$:	lda	CheckTrk
+	and	#63
+	cmp	TRACK
+	bne	12$
+	ldy	SECTOR
+	lda	SecList,y
+	bne	12$
+	lda	#1
+	sta	SecList,y
+	lda	CheckTrk
+	and	#128
+	cmp	#128
+	bne	14$
+	jmp	UnZ4128
+14$:	lda	CheckTrk
+	and	#64
+	cmp	#64
+	bne	15$
+	jmp	UnZ464
+15$:	ldb	Repeats,#0
+	ldw	A0,#$6000
+	adb	SECTOR,A0H
+16$:	jsr	GetBByte
+	cpx	#0
+	beq	17$
+	rts
+17$:	ldy	Repeats
+	sta	(A0),y
+	inc	Repeats
+	bne	16$
+	ldx	#0
+	rts
+
+UnZ4128:	jsr	GetBByte
+	cpx	#0
+	beq	10$
+	rts
+10$:	sta	Repeats
+	jsr	GetBByte
+	cpx	#0
+	beq	11$
+	rts
+11$:	sta	Z4byte
+	ldb	Z4code,#0
+	ldw	A0,#$6000
+	adb	SECTOR,A0H
+12$:	jsr	GetBByte
+	cpx	#0
+	beq	13$
+	rts
+13$:	cmp	Z4byte
+	beq	14$
+	ldy	Z4code
+	sta	(A0),y
+	inc	Z4code
+	bra	20$
+14$:	jsr	GetBByte
+	cpx	#0
+	beq	15$
+	rts
+15$:	sta	Repeats+1
+	jsr	GetBByte
+	cpx	#0
+	beq	17$
+16$:	rts
+17$:	dec	Repeats
+	beq	16$
+	dec	Repeats
+18$:	ldy	Z4code
+	sta	(A0),y
+	inc	Z4code
+	dec	Repeats+1
+	bne	18$
+20$:	lda	Repeats
+	beq	21$
+	dec	Repeats
+	bne	12$
+21$:	ldx	#0
+	rts
+
+
+UnZ464:	ldw	A0,#$6000
+	adb	SECTOR,A0H
+	jsr	GetBByte
+	cpx	#0
+	beq	10$
+	rts
+10$:	ldy	#$00
+11$:	sta	(A0),y
+	ylp	11$
+	ldx	#0
+	rts
+
+;****************************************************
+Go2Pack:	lda	SrcDrv
+	jsr	SecIOinit
+	cpx	#0
+	beq	10$
+	jmp	DiskError
+10$:	ldw	A4,#FileName+4
+	lda	#14
+	jsr	GetFilename
+	bne	11$
+99$	rts
+11$:	lda	FileName+4
+	beq	99$
+12$:	jsr	ChkOkPack
+	bne	99$
+	jsr	FixFNam
+13$:	jmp	DoPakiZ4
+
+
+
+DoPakiZ4:
+10$:	lda	DstDrv
+	jsr	SetDevice
+	jsr	OpenDisk
+	mvw	FnamPtr,A2
+	ldb	A3L,#$02
+	jsr	CreatSF
+	cpx	#0
+	beq	13$
+	jmp	DiskError
+13$:	jsr	DoPakZ4
+	cpx	#0	; error exit?
+	beq	15$
+	cpx	#1
+	beq	16$
+	jmp	DiskError
+15$:	ldb	A2L,#130
+	jsr	ClosSF
+	cpx	#0
+	bne	99$
+	jsr	NxtFile
+	beq	10$
+	cpx	#$ff
+	bne	99$
+	rts
+16$:	ldb	A2L,#130
+	jsr	ClosSF
+	jsr	Imprint
+	jsr	i_OKBox
+	.word	t2Done
+	jmp	HappyEnd
+99$:	jmp	DiskError
+
+; ** check to see if the source drive can be packed
+ChkOkPack:	lda	SrcDrv
+	jsr	SetDevice
+	jsr	OpenDisk
+	lda	SrcDrv
+	jsr	DriveST
+	cmp	#2
+	ble	10$
+	jsr	i_CNCLBox
+	.word	t2No1571
+	ldx	#1
+	rts	
+10$:	jsr	GetDirHead
+	ldy	#162
+	lda	$8200,y
+	sta	DiskID
+	lda	$8201,y
+	sta	DiskID+1
+	lda	DstDrv
+	jsr	SetDevice
+	jsr	GetDirHead
+	ldw	R5,#$8200
+	jsr	CalcBlksFree
+	cwi	R4,#200
+	blt	15$	
+	ldx	#0
+99$:	rts
+15$:	jsr	i_CNCLBox
+	.word	t2NoBlks
+	ldx	#1
+	rts	
+t2NoBlks:	.byte	$18,"Not enough space on dest.",27,0
+t2No1571:	.byte	$18,"Source is not a 1541/1571.",27,0
+
+NxtFile:	jsr	FixFNam2
+	lda	DstDrv
+	jsr	SetDevice
+	jsr	GetDirHead
+	ldw	R5,#$8200
+	jsr	CalcBlksFree
+	cwi	R4,#200
+	blt	15$	
+	ldx	#0
+99$:	rts
+15$:	jsr	Imprint
+	jsr	i_OKCANBox
+	.word	t2NxtDsk
+	cbi	sysDBData,#$01
+	beq	16$
+	ldx	#$ff
+	rts
+16$:	jsr	OpenDisk
+	cpx	#0
+	rts
+
+
+
+FixFNam2:	lda	FileName+2
+	cmp	#'9'
+	bge	20$
+	inc	FileName+2
+	rts
+20$:	ldb	FileName+2,#'0'
+	cwi	FnamPtr,#(FileName+2)	
+	blt	21$
+	ldw	FnamPtr,#(FileName+1)
+21$:	lda	FileName+1
+	cmp	#'9'
+	bge	22$
+	inc	FileName+1
+	rts
+22$:	ldb	FileName+1,#'0'
+	cwi	FnamPtr,#(FileName+1)
+	blt	23$
+	ldw	FnamPtr,#FileName
+23$:	inc	FileName
+	rts
+t2NxtDsk:	.byte	$18,"Destination full. Insert next.",27,0
+
+FixFNam:	ldw	A4,#t2fnPre
+	ldw	A0,#FileName
+	ldy	#0
+19$:	lda	(A4),y
+	beq	20$
+	sta	(A0),y
+	iny
+	bne	19$
+20$:	ldw	FnamPtr,#FileName+2
+	rts
+t2fnPre:	.byte	"001!",0
+
+DoPakZ4:	ldw	Z4ThisB,#Z4buf	; prepare write buf
+	jsr	FixTrkList	; set start/end track
+	mvb	StartTrk,TRACK
+	jsr	Put1stBytes
+	beq	10$
+	rts
+10$:
+DoZ4loop:	ldb	SecLp,#0
+	ldb	SECTOR,#0	; for display sake
+	mvw	TRACK,TNSTRACK
+	jsr	TnSBar
+	jsr	SetMaxSecs
+	mvw	TRACK,LastTnS
+	ldb	SECTOR,#0
+	ldw	A2,#$6000
+	ldw	A3,#$60ff
+	adb	MaxSecs,A3H
+	jsr	ReadSecs
+	mvw	LastTnS,TRACK
+	cpx	#$ff
+	beq	10$
+	cpx	#0
+	beq	10$
+	rts
+10$:	mvw	OrdPtr,A2	; get ordptr
+	ldy	SecLp
+	lda	(A2),y
+	sta	SECTOR	
+	jsr	DoZ4	; now zip this sector
+	cpx	#0
+	beq	11$
+	rts
+11$:	inc	SecLp
+	cpb	SecLp,MaxSecs
+	ble	10$
+	inc	TRACK
+	cpb	TRACK,LastTrk
+	bgt	13$
+	jmp	DoZ4loop
+13$:	jsr	PutBFlush
+	cpx	#0
+	beq	14$
+	rts
+14$:	cbi	LastTrk,#34
+	bgt	15$
+	ldx	#0	; done with group exit
+	rts
+15$:	ldx	#1	; done altogether exit
+	rts	
+
+DoZ4:	jsr	ZScan
+	cmp	#0
+	bne	20$
+	lda	TRACK
+	jsr	PutBByte
+	cpx	#0
+	beq	12$
+11$:	rts
+12$:	lda	SECTOR
+	jsr	PutBByte
+	cpx	#0
+	bne	11$
+	ldb	Repeats,#0
+15$:	ldw	A0,#$6000	; get source buf ptr
+	adb	SECTOR,A0H
+	ldy	Repeats
+	lda	(A0),y
+	jsr	PutBByte
+	cpx	#0
+	bne	11$
+	inc	Repeats
+	bne	15$
+	ldx	#0
+19$:	rts
+20$:	cmp	#$ff
+	bne	30$
+	lda	TRACK
+	ora	#64
+	jsr	PutBByte
+	bne	19$
+	lda	SECTOR
+	jsr	PutBByte
+	bne	19$
+	ldw	A0,#$6000	; get source buf ptr
+	adb	SECTOR,A0H
+	lda	(A0),y
+	jsr	PutBByte
+	rts
+30$:	lda	TRACK
+	ora	#$80
+	jsr	PutBByte
+	bne	19$
+	lda	SECTOR
+	jsr	PutBByte
+	bne	19$
+	lda	RepBSize
+	jsr	PutBByte
+	bne	19$
+	lda	RepChar
+	jsr	PutBByte
+	bne	19$
+	jmp	DoZ4Tuff
+
+
+DoZ4Tuff:	ldw	A0,#$6000	; get source buf ptr
+	adb	SECTOR,A0H
+	mvw	A0,A1
+	inw	A1
+	ldy	#0
+	ldw	RepRun,#0
+10$:	lda	(A0),y	; start scanning
+	cmp	(A1),y
+	beq	50$	; an equal case
+	lda	RepRun	; nonequal, so check end rep
+	beq	40$
+	cmp	#3	; end rep, but enough?
+	bge	30$
+15$:	lda	(A0),y	; no, so just put them out
+	jsr	PutBByte
+	beq	20$
+19$:	rts
+20$:	dec	RepRun	; until RepRun is 0 again
+	bne	15$
+	bra	40$	; then skip to non-rep case
+30$:	lda	RepChar	; rep, and enough, so out!
+	jsr	PutBByte	; fancy rep char
+	bne	19$
+	inc	RepRun	; it will be one short
+	lda	RepRun	; and number of reps!
+	jsr	PutBByte
+	bne	19$
+40$:	ldw	RepRun,#0	; non-repeat, so add normal
+	lda	(A0),y
+	jsr	PutBByte
+	bne	19$
+	iny
+	cpy	#255
+	beq	60$
+	bne	10$
+50$:	inc	RepRun	; repeat, so note this
+	iny
+	cpy	#255
+	bne	10$
+60$:	jmp	DoZ42
+
+
+DoZ42:	lda	RepRun	; clean up! were we repeating?
+	bne	70$
+	lda	(A0),y	; no, so the final byte
+	jsr	PutBByte
+69$:	rts
+70$:	cmp	#3	; did we repeat enough?
+	bge	80$
+75$:	lda	(A0),y	; no, so just put them out
+	jsr	PutBByte
+	bne	69$
+	dec	RepRun
+	bne	75$
+	bra	90$	; then skip to last byte
+80$:	lda	RepChar	; repped enough, so out!
+	jsr	PutBByte
+	bne	69$
+	inc	RepRun	; will be one short
+	lda	RepRun
+	jsr	PutBByte
+	bne	69$
+90$:	lda	(A0),y	; and finally, the final byte
+	jsr	PutBByte
+	bne	69$
+	ldx	#0
+	rts
+
+ZScan:	ldw	RepSize,#2
+	ldb	RepBSize,#0
+	ldw	Repeats,#0
+	ldw	A0,#$6000	; get source buf ptr
+	adb	SECTOR,A0H
+	mvw	A0,A1
+	inw	A1
+	ldy	#0
+	ldw	RepRun,#0
+10$:	lda	(A0),y	; start scanning
+	cmp	(A1),y
+	beq	20$
+12$:	lda	RepRun
+	beq	15$
+	cmp	#3
+	bge	13$
+	adw	RepRun,RepSize
+	adb	RepRun,RepBSize
+	bra	15$
+13$:	inc	Repeats	; a real repeat, so add repcode
+	inw	RepSize
+	inw	RepSize
+	inw	RepSize
+	avb	#2,RepBSize
+15$:	ldw	RepRun,#0	; non-repeat, so add normal
+	inc	RepBSize
+	inw	RepSize
+	iny
+	cpy	#255
+	beq	30$
+	bne	10$
+20$:	inc	RepRun	; repeat, so note this
+	iny
+	cpy	#255
+	bne	10$
+30$:	jmp	ZScan2
+
+
+ZScan2:	lda	RepRun
+	beq	35$
+	cmp	#3
+	bge	33$
+	adw	RepRun,RepSize
+	adb	RepRun,RepBSize
+	bra	35$
+33$:	inc	Repeats	; a real repeat, so add repcode
+	inw	RepSize
+	inw	RepSize
+	inw	RepSize
+	avb	#2,RepBSize
+35$:	inc	RepBSize
+	lda	Repeats
+	bne	36$
+	rts		; return NO repeats, full block
+36$:	cbi	RepRun,#255
+	blt	40$
+	rts
+40$:	cbi	RepBSize,#253	; check for savings
+	blt	45$
+	lda	#0	; none, so just fill it
+	rts
+45$:	ldy	#0
+	tya
+46$:	sta	RepBuf,y
+	ylp	46$
+47$:	lda	(A0),y
+	tax
+	lda	#1
+	sta	RepBuf,x
+	ylp	47$
+48$:	lda	RepBuf,y
+	beq	50$
+	iny
+	bne	48$
+	lda	#1
+	rts
+50$:	tya
+	sta	RepChar
+	lda	#1
+	rts
+
+Put1stBytes:	cbi	TRACK,#1
+	beq	12$
+	lda	#$00	; other tracks stuff
+	jsr	PutBByte
+	bne	99$
+	lda	#$04
+	jsr	PutBByte
+99$:	rts
+12$:	lda	#$fe	; first track stuff
+	jsr	PutBByte
+	bne	99$
+	lda	#$03
+	jsr	PutBByte
+	bne	99$
+	lda	DiskID
+	jsr	PutBByte
+	bne	99$
+	lda	DiskID+1
+	jsr	PutBByte
+	rts
+
+PutBByte:	pha
+	sty	A9L
+	cwi	Z4ThisB,#Z4bufE
+	blt	20$
+10$:	jsr	PutBFlush
+	beq	20$
+	ldy	A9L
+	pla
+	cpx	#0
+	rts
+20$:	mvw	Z4ThisB,A2
+	inw	Z4ThisB
+	pla
+	ldy	#0
+	sta	(A2),y
+	ldy	A9L
+	ldx	#0
+	rts
+
+PutBFlush:	ldw	A2,#Z4buf
+	mvw	Z4ThisB,A3
+	ldw	Z4ThisB,#Z4buf
+	dew	A3
+	jsr	PutSMem
+	cpx	#0
+	rts
+	
+	
+
+.ramsect
+File:	.block	2
+FnamPtr:	.block	2
+CheckTrk:	.block	1
+SecLp:	.block	1
+StartTrk:	.block	1
+LastTrk:	.block	1
+MaxSecs:	.block	1
+SecList:	.block	50
+DiskID:	.block	2
+OrdPtr:	.block	2
+LastError:	.block	1
+OtherLast:	.block	1
+ProgOffset:	.block	1
+LastBlk:	.block	2
+LastTnS:	.block	2
+LastMem:	.block	2
+Z4code:	.block	1
+Z4byte:	.block	1
+Repeats:	.block	2
+RepSize:	.block	2
+RepBSize:	.block	1
+RepChar:	.block	1
+RepBuf:	.block	256
+RepRun:	.block	2
+Z4Offset:	.block	2
+Z4LastB:	.block	2
+Z4ThisB:	.block	2
+Z4buf:	.block	512
+Z4buf2:	.block	10*256
+Z4bufE:
+
+
+</pre></body></html>

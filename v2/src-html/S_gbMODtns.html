@@ -1,0 +1,137 @@
+<!DOCTYPE html><html><head><title>Untitled</title></head><body><pre>
+;*****************************
+;*
+;*         geoBEAP II
+;* "Bo's Excellent Archive Program"
+;*
+;*      (C) 2001 Bo Zimmerman
+;*
+;*  Dedicated to Naomi Zimmerman
+;*****************************
+.if 	Pass1
+.noeqin
+.noglbl
+.include	GEOSequates
+.eqin
+.glbl
+.endif
+
+.psect
+
+
+HappyEnd:	ldx	#0
+DiskError:	txa
+	pha
+	jsr	Imprint
+	pla
+	tax
+	cpx	#0
+	beq	10$
+	jsr	FError
+10$:	jsr	NewSrc
+	jsr	ShowSrc
+	jsr	NewDst
+	jmp	ShowDst
+
+GetFilename:	sta	t2fnB2
+	ldy	#0
+	lda	#0
+	sta	(A4),y
+	ldw	R0,#t2fnBox
+	jsr	DoDlgBox
+	cbi	sysDBData,#2
+	rts
+t2fnBox:	.byte	$80|$01
+	.byte	11
+	.byte	$12,$19
+	.word	t2fnBtx1
+	.byte	13
+	.byte	$28
+	.byte	$34
+	.byte	A4
+t2fnB2:	.byte	12
+	.byte	$02,$0f,$44
+	.byte	0
+t2fnBtx1:	.byte	$18,"Enter destination file:",27,0
+
+
+TnSBar:	mvb	dispBufferOn,OldDispBuf
+	ldb	dispBufferOn,#ST_WR_FORE
+	ldw	R3,#210
+	ldw	R4,#295
+	ldb	R2L,#100
+	ldb	R2H,#145
+	adw	ADW4080,R3
+	adw	ADW4080,R4
+	lda	#0
+	jsr	SetPattern
+	jsr	Rectangle
+	lda	#$ff
+	jsr	FrameRectangle
+	ldb	R1H,#111
+	ldw	R11,#220
+	adw	ADW4080,R11
+	ldw	R0,#gbMODt1
+	jsr	PutString
+	ldw	R11,#220
+	adw	ADW4080,R11
+	ldb	R1H,#125
+	ldw	R0,#gbMODt2
+	jsr	PutString
+	ldb	R0H,#0
+	mvb	TNSTRACK,R0L
+	lda	#$ff
+	jsr	PutDecimal
+	ldw	R11,#220
+	adw	ADW4080,R11
+	ldb	R1H,#139
+	ldw	R0,#gbMODt3
+	jsr	PutString
+	ldb	R0H,#0
+	mvb	TNSTRACK+1,R0L
+	lda	#$ff
+	jsr	PutDecimal
+	mvb	OldDispBuf,dispBufferOn
+	rts
+
+gbMODt1:	.byte	$18,"Progress",27,0
+gbMODt2:	.byte	$18,"Track  : ",27,0
+gbMODt3:	.byte	$18,"Sector : ",27,0
+
+FileBar:	mvb	dispBufferOn,OldDispBuf
+	ldb	dispBufferOn,#ST_WR_FORE
+	ldw	R3,#205
+	ldw	R4,#300
+	ldb	R2L,#100
+	ldb	R2H,#145
+	adw	ADW4080,R3
+	adw	ADW4080,R4
+	lda	#0
+	jsr	SetPattern
+	jsr	Rectangle
+	lda	#$ff
+	jsr	FrameRectangle
+	ldb	R1H,#111
+	ldw	R11,#210
+	adw	ADW4080,R11
+	ldw	R0,#gbMODt1
+	jsr	PutString
+	ldw	R11,#210
+	adw	ADW4080,R11
+	ldb	R1H,#125
+	mvw	A2,R0
+	jsr	PutString
+	ldw	R11,#210
+	adw	ADW4080,R11
+	ldb	R1H,#139
+	mvw	A3,R0
+	jsr	PutString
+	mvb	OldDispBuf,dispBufferOn
+	rts
+
+
+.ramsect
+OldDispBuf:	.block	1
+TNSTRACK:	.block	2
+
+</pre></body></html>

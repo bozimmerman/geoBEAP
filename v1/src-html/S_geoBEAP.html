@@ -1,0 +1,866 @@
+<!DOCTYPE html><html><head><title>Untitled</title></head><body><pre>
+;*****************************
+;*
+;*           geoBEAP
+;* "Bo's Excellent Archive Program"
+;*
+;*      by: Bo Zimmerman
+;*
+;*  Written for: LoadStar 64
+;*  Completed on Jan. 22nd, 1996
+;*  Revised on Feb 27, 1997
+;*  Updated on Jan 4th, 1998
+;*  Dedicated to Naomi Zimmerman
+;*****************************
+
+.if	Pass1
+	.include	GEOSequates
+.endif
+
+	
+.psect
+ProgStart:
+	mvw	rightMargin,MakeScreen+7	; for 128/80 cols
+	ldb	dispBufferOn,#(ST_WR_FORE|ST_WR_BACK)
+	ldw	R0,#MakeScreen
+	jsr	GraphicsString	; draw boxes, etc..
+	jsr	DoWords	; write headings
+	ldw	R0,#ClickBoxes
+	jsr	DoIcons	; set up active icons
+	jsr	InitSys	; init all variables
+	jsr	UpdateB	; update misc boxes
+	jsr	UpdateS	; display source fnames
+	jsr	UpdateD	; display dest. filenames
+	ldw	otherPressVec,#CMclick	; misc click boxes rtine
+	rts
+
+;********************
+;* DoWords
+;* MakeScreen
+;********************
+
+DoWords:		; ** display the screen text
+	jsr	i_PutString
+	.byte	15,0,47,$18,"Disk:",27,0
+	jsr	i_PutString
+	.byte	205,0,47,$18,"Disk:",27,0
+	jsr	i_PutString
+	.byte	143,0,67,27,"Pack",0
+	jsr	i_PutString
+	.byte	143,0,87,27,"Unpack",0
+	jsr	i_PutString
+	.byte	143,0,127,27,".D64",0
+	jsr	i_PutString
+	.byte	143,0,147,27,".BEP",0
+	jsr	i_PutString
+	.byte	130,0,55,$18,"Mode",27,0
+	jsr	i_PutString
+	.byte	130,0,115,$18,"Format",27,0
+	jsr	i_PutString
+	.byte	45,0,32,$18,"Source",27,0
+	jsr	i_PutString
+	.byte	228,0,32,$18,"Destination",27,0
+	rts
+
+MakeScreen:
+	.byte	NEWPATTERN,1
+	.byte	MOVEPENTO,0,0,0
+	.byte	RECTANGLETO,63,1,199
+	.byte	NEWPATTERN,0	; lined header
+	.byte	MOVEPENTO,0,0,0
+	.byte	RECTANGLETO,63,1,199
+	.byte	NEWPATTERN,1
+	.byte	MOVEPENTO,0,0,0
+	.byte	FRAME_RECTO,63,1,14
+	.byte	MOVEPENTO,0,0,2
+	.byte	FRAME_RECTO,63,1,12	; more lined header
+	.byte	MOVEPENTO,0,0,4
+	.byte	FRAME_RECTO,63,1,10
+	.byte	MOVEPENTO,0,0,6
+	.byte	FRAME_RECTO,63,1,8
+	.byte	MOVEPENTO,130,0,60	; radial buttons for
+	.byte	FRAME_RECTO,140,0,70	;   "conversion"
+	.byte	MOVEPENTO,130,0,80
+	.byte	FRAME_RECTO,140,0,90
+	.byte	MOVEPENTO,130,0,120	; radial buttons for
+	.byte	FRAME_RECTO,140,0,130	;   "format"
+	.byte	MOVEPENTO,130,0,140
+	.byte	FRAME_RECTO,140,0,150
+	.byte	MOVEPENTO,121,0,53	; source shadow
+	.byte	RECTANGLETO,123,0,163
+	.byte	MOVEPENTO,13,0,161
+	.byte	RECTANGLETO,123,0,163
+	.byte	MOVEPENTO,55,1,53	; dest shadow
+	.byte	RECTANGLETO,57,1,163
+	.byte	MOVEPENTO,203,0,161
+	.byte	RECTANGLETO,57,1,163
+	.byte	MOVEPENTO,10,0,50	; source & dest boxes
+	.byte	FRAME_RECTO,120,0,160
+	.byte	MOVEPENTO,200,0,50
+	.byte	FRAME_RECTO,54,1,160
+	.byte	ESC_PUTSTRING,110,0,10	; title
+	.byte	$18,$1a,"geoBEAP v1.5",27,0
+
+;*******************
+;*  ClickBoxes
+;*******************
+
+ClickBoxes:		; ** initialize the screen click boxes
+	.byte	10	; # entries
+	.word	0	; mouse x pos
+	.byte	0	; mouse y pos
+	.word	LAUcon	; name of click box
+	.byte	17	; click box x pos
+	.byte	175	; click box 		y pos
+	.byte	LAUx,LAUy	; width & height
+	.word	LaunChk	; routine
+	.word	EXIcon	; EXIT icon
+	.byte	37
+	.byte	0
+	.byte	EXIx,EXIy
+	.word	DoExit
+	.word	DRVcon	; left DRIVE icon
+	.byte	1
+	.byte	165
+	.byte	DRVx,DRVy
+	.word	DoDriveS
+	.word	DRVcon	; right DRIVE icon 
+	.byte	26
+	.byte	165
+	.byte	DRVx,DRVy
+	.word	DoDriveD
+	.word	DSKcon	; left DISK icon
+	.byte	8
+	.byte	165
+	.byte	DSKx,DSKy
+	.word	DoDiskS
+	.word	DSKcon	; right DISK icon
+	.byte	33
+	.byte	165
+	.byte	DSKx,DSKy
+	.word	DoDiskD
+	.word	UPAcon	; left UP icon
+	.byte	3
+	.byte	151
+	.byte	UPAx,UPAy
+	.word	DoPgUpS
+	.word	DWNcon	; left DOWN icon
+	.byte	11
+	.byte	151
+	.byte	DWNx,DWNy
+	.word	DoPgDnS
+	.word	UPAcon	; right UP icon
+	.byte	27
+	.byte	151
+	.byte	UPAx,UPAy
+	.word	DoPgUpD
+	.word	DWNcon	; right DOWN icon
+	.byte	35
+	.byte	151
+	.byte	UPAx, UPAy
+	.word	DoPgDnD
+
+;********************
+;* InitSys
+;********************
+
+InitSys:	jsr	DriveST	; check # drives
+	cpx	#2	; must be >= 2 drives
+	bge	10$
+	ldw	A7,#DVtxt0	; inform of error
+	ldw	A8,#DVtxt1
+	ldw	R0,#OKdbox
+	jsr	DoDlgBox	; too few drives, exit
+	jmp	EnterDeskTop
+10$:	mvb	curDrive,BootDRV
+	lda	#0
+	sta	Clicker	; init fname select toggle
+	sta	Conv	; init conv, default=Pack
+	sta	Mode	; init mode, default=D64
+	sta	SrcIDX	; init source index
+	sta	DestIDX	; init destination index
+	jsr	ClrSel	; init selections area
+	ldw	A0,#SrcDRV	; current drive = source
+	lda	curDrive
+	jsr	MakeDRV
+	ldw	A0,#DestDRV	; next drive = dest
+	jsr	NextDRV
+	jmp	MakeDRV	; drives, all else, done
+
+ClrSel:	ldx	#99
+	lda	#0	; Clear all selection boxes
+10$:	sta	Select,x
+	dex
+	bne	10$
+	sta	Select,x
+	rts	
+
+;********************
+;*  UpdateB 
+;*  UpdateD 
+;*  Rupdate
+;********************
+
+UpdateB:	mvb	Conv,Rupdate+11	; load conv rev in
+	eor	#1
+	sta	Rupdate+1	; load second conv 
+	mvb	Mode,Rup2+11	; load mode rev in		
+	eor	#1
+	sta	Rup2+1	; load second mode
+	ldw	R0,#Rupdate
+	jmp	GraphicsString	; update boxes
+
+UpdateD:	jsr	i_GraphicsString	; clear disk name area
+	.byte	NEWPATTERN,0
+	.byte	MOVEPENTO,230,0,40
+	.byte	RECTANGLETO,53,1,49
+	.byte	0
+	ldb	R1H,#47	; put dest disk name
+	ldw	R11,#240
+	ldw	R0,#DestDRV+1
+	jsr	PutString
+	jsr	i_GraphicsString	; clear file names box
+	.byte	NEWPATTERN,0
+	.byte	MOVEPENTO,201,0,51
+	.byte	RECTANGLETO,53,1,150
+	.byte	0
+	mvb	DestIDX,A0L	; write file names
+	ldw	A1,#DestDRV+20
+	ldw	A2,#215
+	jsr	ShowFiles	; display filenames
+	rts
+
+Rupdate:	.byte	NEWPATTERN,0	
+	.byte	MOVEPENTO,131,0,61	; fill for pack conversion
+	.byte	RECTANGLETO,139,0,69	
+	.byte	NEWPATTERN,0	
+	.byte	MOVEPENTO,131,0,81	; fill for unpack conversion
+	.byte	RECTANGLETO,139,0,89
+Rup2:	.byte	NEWPATTERN,0	
+	.byte	MOVEPENTO,131,0,121	; fill for .d64 mode
+	.byte	RECTANGLETO,139,0,129	
+	.byte	NEWPATTERN,0
+	.byte	MOVEPENTO,131,0,141	; fill for .bep mode
+	.byte	RECTANGLETO,139,0,149
+	.byte	0	; All done
+
+;********************
+;* UpdateS, UpdateS2
+;********************
+
+UpdateS:	jsr	i_GraphicsString	; clear drive name area
+	.byte	NEWPATTERN,0
+	.byte	MOVEPENTO,40,0,40
+	.byte	RECTANGLETO,119,0,49
+	.byte	0
+	ldb	R1H,#47	; put drive name up
+	ldw	R11,#50
+	ldw	R0,#SrcDRV+1
+	jsr	PutString
+	jsr	i_GraphicsString
+	.byte	NEWPATTERN,0	; clear out the source
+	.byte	MOVEPENTO,11,0,51	;   file names box.
+	.byte	RECTANGLETO,119,0,150
+	.byte	0
+	mvb	SrcIDX,A0L	; now put filenames
+	ldw	A1,#SrcDRV+20	;   in source box
+	ldw	A2,#25
+	jsr	ShowFiles
+UpdateS2:		; reverse selection(s)
+	mvb	SrcIDX,Temp+1	; 11 filenames to display
+	ldb	Temp+2,#11
+	adb	SrcIDX,Temp+2
+	ldb	Temp,#51	; starting row for box
+	ldw	A0,#Select	; set up reverse table
+11$:	ldy	Temp+1
+	lda	(A0),y	; check reverse status
+	beq	10$
+	mvb	Temp,R2L	; reverse on
+	ldb	R2H,#8
+	adb	Temp,R2H
+	ldw	R3,#15
+	ldw	R4,#110
+	jsr	InvertRectangle	; invert
+10$:	avb	#9,Temp	; increase to next spot
+	inc	Temp+1	; increment index
+	cpb	Temp+1,Temp+2		
+	bne	11$	; keep looping till done
+	rts
+
+;********************
+;* DoDriveS
+;* DoDriveD
+;* ClrS, ClrD
+;********************
+
+DoDriveS:		; ** handle drive click box under source
+	lda	SrcDRV	; start from cur SRC
+	jsr	SetDevice
+	ldw	A0,#SrcDRV
+	jsr	NextDRV	; go to next drive
+	jsr	MakeDRV	; set it up
+ClrS:	ldb	SrcIDX,#0
+	jsr	ClrSel	; clear selections list
+	jmp	UpdateS	; update filenames
+
+DoDriveD:		; ** handle drive click box under destination
+	lda	DestDRV	; start from cur dest
+	jsr	SetDevice
+	ldw	A0,#DestDRV
+	jsr	NextDRV	; go to next device
+	jsr	MakeDRV
+ClrD:	ldb	DestIDX,#0
+	jmp	UpdateD	; redisplay filenames
+
+
+
+;********************
+;* DoDiskS
+;* DoDiskD
+;* DoDiskA
+;********************
+
+DoDiskS:		; ** handle disk icon under source
+	ldw	A0,#SrcDRV	; set up source
+	jsr	DoDiskA
+	jsr	ClrS
+	cpb	SrcDRV,DestDRV
+	beq	10$
+	rts
+10$:	ldw	A0,#DestDRV	; do dest if same drive
+	lda	DestDRV
+	jsr	MakeDRV
+	jmp	ClrD
+
+DoDiskD:		; ** handle disk icon under destination
+	ldw	A0,#DestDRV	; set up destination
+	jsr	DoDiskA
+	jsr	ClrD
+	cpb	SrcDRV,DestDRV
+	beq	10$
+	rts
+10$:	ldw	A0,#SrcDRV	; if source drive, do also
+	lda	SrcDRV
+	jsr	MakeDRV
+	jmp	ClrS
+
+DoDiskA:	ldy	#0
+	lda	(A0),y
+	jsr	DriveST
+	cmp	#4	; is it native?
+	blt	10$
+	cbi	$c00f,#$40	; is it wheels?
+	blt	10$
+	cbi	$904f,#$50	; is the driver ok?
+	blt	10$
+	lda	#(5|64)
+	jsr	$9d80	; get new kernal
+	jsr	$5003	; change partition
+	jsr	$9d83	; restore kernal
+	bra	11$
+10$:	ldy	#0
+	lda	(A0),y
+	jsr	SetDevice
+	ldw	A7,#DKtxt0
+	ldw	A8,#NOTXT
+	jsr	GOKbox	; prompt for disk
+11$:	ldy	#0
+	lda	(A0),y
+	jmp	MakeDRV	; reset drive
+
+
+;*******************
+;* DriveST
+;* MakeDRV
+;*******************
+	; ** send drive number in .a
+DriveST:	; ** return drive type in .a, total drives in .x
+	ldx	numDrives
+	tay
+	lda	driveType-8,y
+	and	#%00000111
+	rts
+
+;*******************
+;* MakeDRV	: Set up a drive in memory
+;* Requires	: "File&Disk.EQ", NextDRV  
+;* Parameters	: A0 = pointer to buffer:  1 byte drive number,
+;*		  17 byte disk name,  100*17 byte file name buffer
+;*		: .a  = drive number to set up if possible
+;* Returns		: Data in buffer in A0
+;* Destroys	: a,x,y, A1, R0, R5, R6, R10
+MakeDRV:
+	ldy	#0
+	sta	(A0),y	; save device
+	jsr	SetDevice
+	jsr	OpenDisk	; get disk data
+	cpx	#0	; disk error?
+	beq	90$
+	jsr	NextDRV	; pick some other drive
+	jmp	MakeDRV
+89$:	lda	#'A'-8	; yes, ask for new disk	
+	add	curDrive
+	sta	D1txt0+24	; save letter to text
+	ldw	A7,#D1txt0
+	ldw	A8,#NOTXT
+	jsr	GOKbox	; now, really ask for disk
+	lda	curDrive
+	jmp	MakeDRV	; go up and retry
+90$:	ldx	#A1
+	jsr	GetPtrCurDkNm	; find disk name
+	ldy	#0
+10$:	lda	(A1),y
+	cmp	#$a0	; disk name ends in $a0
+	beq	11$
+	iny
+	sta	(A0),y	; copy disk name to buf
+	cpy	#17
+	ble	10$
+11$:	iny
+	lda	#0
+	sta	(A0),y	; put disk name delimeter
+	avw	#20,A0	; point to file buffer	
+	mvw	A0,R1
+	ldw	R0,#(99*17)+10
+	jsr	ClearRam	; clear file buffer	
+	jsr	BuildTable
+	rts
+
+;***************
+;  Build Filename 
+; Table For Disk Add
+;***************
+
+BuildTable:	ldw	R10,#0
+	mvw	A0,R6
+	jsr	OpenDisk
+	txa		; check for dir header error
+	beq	11$
+10$:	ldx	#0
+	rts		; disk error!!
+11$:	svw	#3,R6
+	jsr	Get1stDirEntry
+12$:	txa
+	bne	10$	; check for error (and eof?)
+	tya
+	bne	10$	; end of directory perhaps?
+	lda	(R5),y	; does the file exist?
+	beq	16$	; no, so skip to next
+	iny
+	iny
+13$:	iny		; now jump to filename itself
+	lda	(R5),y	; get a letter of the filename
+	cmp	#$a0	; end of the filename reached?
+	beq	14$
+	sta	(R6),y	; y offset is ok, R6 is offset too!
+	cpy	#$13	; too far?
+	bne	13$	; no, so get next letter to copy
+14$:	lda	#0	; put filename delimeter in
+	sta	(R6),y
+	iny		; step out one byte for 0
+	cpy	#20
+	blt	14$	; keep looping until 20
+	tya		; add file length to R6
+	clc
+	adc	R6L
+	sta	R6L
+	bcc	15$
+	inc	R6H
+15$:	svw	#3,R6	; and take 3 right back!	
+	inc	R10L
+16$:	cwi	R10,#100	; run out of space yet?
+	bge	17$	; yes, so get outa here
+	jsr	GetNxtDirEntry	; try for the next
+	bra	12$
+17$:	ldx	#0
+	rts	
+
+;*******************
+;* NextDRV
+;* ShowFiles
+;*******************
+
+;* NextDRV	: Cycles between 8 - 11
+;* Requires	: "File&Disk.EQ"
+;* Parameters	: curDrive = active drive
+;* Returns		: .a with new drive letter
+;* Destroys	: a,y
+NextDRV:	ldy	curDrive	; start w/ current
+10$:	iny
+	cpy	#12	; drives 8-10
+	bne	11$
+	ldy	#8
+11$:	lda	$8486,y	; is a drive there?
+	beq	10$
+	tya		; found one, exit
+	rts	
+
+;* ShowFiles	: Displays Filenames in a screen buffer
+;* Requires	: Nothing
+;* Parameters	: A0L = index into a buffer of files
+;*		: A1 = pointer file buffer, 0-17 chars ea
+;*		: A2 = starting column to print
+;* Returns		: a full, happy, screen window
+;* Destroys	: A0,A1,A2,Temp,R0,R1,R11,a,x
+ShowFiles:
+	cbi	A0L,#0	
+	beq	10$	; if not starting at top,
+	ldy	A0L	;  move to right fname
+11$:	avw	#17,A1
+	ylp	11$
+10$:	ldx	#0
+	ldb	A0H,#58	; correct row
+12$:	stx	Temp
+	mvb	A0H,R1H	; set up other print vars
+	mvw	A1,R0
+	mvw	A2,R11			
+	ldy	#0
+	lda	(R0),y	; is a filename there?	
+	beq	13$
+	jsr	PutString	; yes, so print it.
+	avw	#17,A1
+	avb	#9,A0H	; new row, fname
+	ldx	Temp
+	inx
+	cpx	#10	; 10 fnames/ window
+	ble	12$
+13$:	rts
+
+;*******************
+;*  DoPgUpS
+;*  DoPgDnS
+;*  DoPgUpD
+;*  DoPgDnD
+;*******************
+
+		;** handle icons for page up/down on src & dest
+DoPgUpS:	lda	SrcIDX	;  no up from top
+	beq	10$
+	sec
+	sbc	#11	; 10 fnames / window
+	sta	SrcIDX
+	jsr	UpdateS
+10$:	rts
+
+DoPgDnS:	lda	#11
+	add	SrcIDX	; set index next page
+	sta	Temp
+	tay
+	ldw	A0,#SrcDRV+20
+11$:	avw	#17,A0	; set fname ptr/ nxt pg
+	ylp 11$
+	lda	(A0),y
+	beq	10$	; anything there? y=do it
+	mvb	Temp,SrcIDX
+	jsr	UpdateS
+10$:	rts
+
+DoPgUpD:	lda	DestIDX	;  no up from top
+	beq	10$
+	sec
+	sbc	#11	; 10 fnames / window
+	sta	DestIDX
+	jsr	UpdateD
+10$:	rts
+
+DoPgDnD:	lda	#11
+	add	DestIDX	; set index next page
+	sta	Temp
+	tay
+	ldw	A0,#DestDRV+20
+11$:	avw	#17,A0	; set fname ptr/ nxt pg
+	ylp 11$
+	lda	(A0),y
+	beq	10$	; anything there? y=do it
+	mvb	Temp,DestIDX
+	jsr	UpdateD
+10$:	rts
+
+;*******************
+;*  GOKbox
+;*  GODbox
+;*  MvFname
+;*  FnamUpp
+;*  AppString
+;*******************
+
+GOKbox:	ldw	R0,#OKdbox	; some oft used routines
+	jmp	DoDlgBox
+
+GODbox:	ldw	R0,#Dialog	; another frquently caller
+	jsr	DoDlgBox
+	cbi	sysDBData, #1
+	rts
+
+MvFname:	; ** copy a filename to some space A0 -> A1
+	ldy	#$ff
+10$:	iny
+	lda	(A0),y	; copy filename
+	sta	(A1),y
+	bne	10$
+11$:	cpy	#16	; filenames are 16 chars
+	beq	12$	
+	lda	#$A0	; fill in A0 chars
+	sta	(A1),y
+	iny
+	bne	11$
+12$:	rts
+
+FnamUpp:		;** make a filename commodore uppercase (A0)
+	ldy	#$ff
+10$:	iny
+	lda	(A0),y
+	beq	11$	; filename ends in 0
+	cmp	#'a'
+	blt	10$	; is it lowercase?
+	cmp	#'z'
+	bgt	10$
+	sec
+	sbc	#'a' - 'A'	; yes, so FIX IT!
+	sta	(A0),y
+	bra	10$	; keep checking
+11$:	rts
+
+AppString:	; ** append two strings, A0 + A1 = A0
+	lda	A1L
+	sta	AppString + 20	; self modifying code!
+	lda	A1H
+	sta	AppString + 21
+	ldy	#$ff
+10$:	iny
+	lda	(A0),y	; find end of filename
+	bne	10$
+	ldx	#0
+11$:	lda	$ffff,x	; add extension to fname
+	sta	(A0),y
+	inx
+	iny
+	cmp	#0	; 0 is end of extension
+	bne	11$	
+	rts
+
+;*******************
+;*  OKdbox
+;*  Dialog
+;*  FNMdbox
+;*******************
+
+OKdbox:	.byte	$80 | $01
+	.byte	12	;add text
+	.byte	$10,$16
+	.byte	A7
+	.byte	$01,$09,$42	;OK icon
+	.byte	12	;add text
+	.byte	$10,$2a
+	.byte	A8
+	.byte	0	;end of defintion
+
+Dialog:	.byte	$80 | $01
+	.byte	12	;add text
+	.byte	$10,$16
+	.byte	A7
+	.byte	12	;add text
+	.byte	$10,$2a
+	.byte	A8
+	.byte	$01,$04,$40	;OK icon
+	.byte	$02,$0e,$40	;Cancel icon
+	.byte	0	;end of defintion
+
+FNMdbox:	.byte	$80 | $01
+	.byte	11	;add text
+	.byte	$12,$19
+	.word	EFtxt0
+	.byte	13	;GetString
+	.byte	$28	;XOffset
+	.byte	$34	;YOffset
+	.byte	A4	;gives r# to contain pntr to text buffer. 5-10
+	.byte	12	;maximum # of chars to accept.
+	.byte	$02,$0f,$44	;Cancel icon
+	.byte	0	;end of defintion
+
+
+;*******************
+;*  CMclick
+;*******************
+
+CMclick:	ldw	R1,#Clicker	; fix that on/off "feature"
+	jsr	Toggle	; toggles click/release
+	bne	10$
+	rts
+10$:	lda	Conv
+	beq	12$	; no chk filled box
+	ldb	R2L,#60
+	ldb	R2H,#70
+	jsr	MinClk
+	beq	13$	; no click, no swap 
+11$:	ldw	R1,#Conv	; swap conv boxes
+	jsr	Toggle
+	jmp	UpdateB
+12$:	ldb	R2L,#80	; chk other conv box
+	ldb	R2H,#90
+	jsr	MinClk
+	bne	11$	; chked, so swap
+13$:	lda	Mode	; mode's turn
+	beq	15$	; no chk filled box
+	ldb	R2L,#120
+	ldb	R2H,#130
+	jsr	MinClk
+	beq	16$	; no click, no swap
+14$:	ldw	R1,#Mode
+	jsr	Toggle	; swap mode boxes
+	jmp	UpdateB
+15$:	ldb	R2L,#140	; check other mode box
+	ldb	R2H,#150
+	jsr	MinClk
+	bne	14$	; click, so swap
+16$:	ldb	R2L,#50	; now check filenames
+	ldb	R2H,#150	; was ANY filename?
+	jsr	MinClk2
+	beq	19$
+	ldb	Temp,#50	; load top of fnames
+	mvb	SrcIDX,Temp+1	; set up select index
+	ldb	Temp+2,#11
+	adb	SrcIDX,Temp+2
+	ldw	A0,#Select	; load top of select idx
+18$:	mvb	Temp,R2L	; set up fname y's
+	ldb	R2H,#9
+	adb	Temp,R2H
+	jsr	MinClk2	; check if name clicked
+	beq	20$	
+	ldy	Temp+1	; clicked, so highlight
+	lda	(A0),y
+	bne	19$	; already selected!
+	jsr	ClrSel	; clear all selections
+	lda	#1
+	sta	(A0),y	; set filename selected
+	jsr	UpdateS	; update fnames, exit
+19$:	rts
+20$:	avb	#9,Temp
+	inc	Temp+1	; try next name
+	cpb	Temp+1,Temp+2
+	bne	18$
+	rts
+
+;*******************
+;* FIndex
+;* MinClk, MinClk2
+;* Toggle
+;* DoExit
+;*******************
+
+MinClk:	ldw	R3,#130	; for mode/conv clicks
+	ldw	R4,#140
+	jmp	IsMseInRegion
+
+MinClk2:	ldw	R3,#11	; for filename clicks
+	ldw	R4,#119
+	jmp	IsMseInRegion
+
+Toggle:	ldy	#0	; toggling 0th bit
+	lda	(R1),y
+	eor	#1
+	sta	(R1),y
+	rts
+
+;* FIndex		: Returns indexed filename
+;* Parameters	: A1 = start of binary index, .y = index to find
+;*		: A0 = start of filename list
+;* Returns		: A0 = pointer, x = error
+;* Destroys	: a,y,x, A0, A2L
+FIndex:	sty	A2L
+	ldy	#0
+11$:	lda	(A1),y	; check index byte
+	beq	10$
+	ldy	#0	; set, so check filename
+	lda	(A0),y
+	beq	12$
+	ldx	#0	; good, so exit
+	rts
+10$:	avw	#17,A0	; set next filename
+	iny
+	cpy	A2L
+	bne	11$	; next index	
+12$:	ldx	#1	; nada, so exit
+	rts
+
+DoExit:	ldw	A7,#GBtxt0	; ask if exit is ok
+	ldw	A8,#NOTXT
+	jsr	GODbox
+	beq	10$
+	rts
+10$:	lda	BootDRV	; reset drive, and exit
+	jsr	SetDevice
+	jmp	EnterDeskTop
+
+;*******************
+;*  Ram Section
+;*  Equates & Variables
+;*******************
+.ramsect
+
+TrackTo:	.block	1	; last track
+Sectors:	.block	1	; # sectors in a track
+Sectors2:	.block	1	; temporary limit
+TSindex:	.block	1	; index into a buffer
+TabPtr:	.block	2	; pointer to drive block list
+TabBlks:	.block	1	; maximum tracks for a drive
+HalFlag:	.block	1	; flag for finishing the track
+dirTnS:	.block	2	; directory entry t & s
+dirPtr:	.block	2	; pointer to directory entry
+TnS:	.block	2	; current track & sec.
+Byte:	.block	2	; position in char buffer
+Track:	.block	1	; current track
+Sector:	.block	1	; current sector
+BlkBuf:	.block 300	; working input buffer
+Buffer:	.block 20*256	; a full cached track
+	.block	3*256	;     or approx. half a track
+BAM1:	.block	256	; official $8200 saving place
+BAM2:	.block	256	; official $8900 saving place
+BAM3:	.block	256	; official $9c80 saving place
+
+WBmax:	.block	2	; progress window max
+WBincr:	.block	2	; progress incremental
+WBctop:	.block	2	; next increment max
+WBcount:	.block	2	; counter to next increment 
+Conv:	.block	1	; conversion, 0=pack, 1=unpack
+Mode:	.block	1	; mode, 0=D64, 1=BEP
+
+BootDRV:	.block	1	; device booted from
+SrcIDX:	.block	1	; index into fname window
+SrcDRV:	.block	18	; source device info, fnames
+	.block	100*17
+Select:	.block	100	; which fnames selected
+Clicker:	.block	1	; 0=just clicked, 1=let go
+DestIDX:	.block	1	; index into dest window
+DestDRV:	.block	18	; dest drive info, fnames
+	.block	100*17
+Fname:	.block	18	; destination filename
+Fsize:	.block	2	; file size
+
+
+
+W:	.block	2	; official LZW "W"
+C:	.block	2	; character to check
+Zfst:	.block	2	; first letter of last output
+SErr:	.block	1	; source error byte
+Tndx:	.block	1	; pointer to last used table entry
+T0a:	.block	256	; 0 = normal char, 1 = tabled
+T0b:	.block	256	; table index
+T0c:	.block	256	; table characters
+T0chk:	.block	1	; to keep from re-checking table
+WIlimit:	.block	2	; end of T&S buffer for reading
+ZIlimit:	.block	2	; end of read buffer
+WObit:	.block	1	; bit pos in out buf 4 LZW out
+ZIbit:	.block	1	; bit pos in input buf 4 LZW in
+Oflow:	.block	1	; overflow flag for WObuf, ZIbuf
+LZW1st:	.block	1	; to handle special 1st char case
+Znuff:	.block	2	; points to full point of output buff
+
+ZIbuf:
+WObuf:	.block	10*256	; output buffer for LZW work
+ZIflow:
+WOflow:	.block	10	; overflow byte(s) for WObuf
+Temp:	.block	18	; whatever its needed for
+ZUnBuf:	.block	256	; unpacking buffer for an unLZW in
+TheEnd:	.block 1	; serves no purpose
+</pre></body></html>

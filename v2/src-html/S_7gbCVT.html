@@ -1,0 +1,214 @@
+<!DOCTYPE html><html><head><title>Untitled</title></head><body><pre>
+;*****************************
+;*
+;*         geoBEAP II
+;* "Bo's Excellent Archive Program"
+;*
+;*      (C) 2001 Bo Zimmerman
+;*
+;*  Dedicated to Naomi Zimmerman
+;*****************************
+.if 	Pass1
+.noeqin
+.noglbl
+.include	GEOSequates
+.eqin
+.glbl
+.endif
+
+.psect
+	jmp	Go2CVT	; VPRGbase + 0
+
+Go2CVT:	lda	PackUnpack
+	beq	11$
+	jmp	Go2Unpack
+11$:	jmp	Go2Pack
+
+;****************************************************
+Go2Unpack:
+	ldw	A2,#t2Ready1
+	cpb	SrcDrv,DstDrv
+	beq	10$
+	ldw	A2,#t2Ready2
+10$:	jsr	YNBox
+	cbi	sysDBData,#$03
+	bne	12$
+	lda	SrcDrv
+	jsr	SetDevice
+	jsr	GetFirstFile	; get a filename
+	cpx	#$00
+	bne	11$
+	jmp	StartUnCVT
+11$:	jsr	i_CNCLBox
+	.word	t2NoFile
+12$:	jmp	HappyEnd
+Co2Unpack:	lda	SrcDrv
+	jsr	SetDevice
+	jsr	GetNxtFile
+	cpx	#$00
+	bne	10$
+	jmp	StartUnCVT	; A0 points
+10$:	jsr	i_OKBox
+	.word	t2Done
+	jmp	HappyEnd
+t2Done:	.byte	$18,"Operation Complete",27,0
+t2NoFile:	.byte	$18,"Select one or more files.",27,0
+t2Ready1:	.byte	$18,"Ready to unconvert file(s)?",27,0
+t2Ready2:	.byte	$18,"Copy and unconvert file(s)?",27,0
+t2Ready3:	.byte	$18,"Ready to convert file(s)?",27,0
+t2Ready4:	.byte	$18,"Copy and convert file(s)?",27,0
+
+StartUnCVT:	mvw	A0,File
+	lda	SrcDrv
+	jsr	SetDevice
+	jsr	OpenDisk
+	cpb	SrcDrv,DstDrv
+	beq	50$
+	ldw	A2,#t2Copy
+	mvw	File,A3
+	jsr	FileBar
+	mvw	File,A2
+	mvw	File,A3
+	ldw	A4,#$6000
+	ldw	A5,#$7f00
+	mvb	DstDrv,A6L
+	jsr	FileCopy
+	cpx	#0
+	beq	49$
+48$:	jmp	DiskError
+49$:	lda	DstDrv
+	jsr	SetDevice
+	jsr	OpenDisk
+50$:	ldw	A2,#t2UnConvert
+	mvw	File,A3
+	jsr	FileBar
+	mvw	File,A2
+	jsr	unConv
+	cpx	#0
+	bne	60$
+	jsr	Imprint
+	jmp	Co2Unpack
+60$:	cpx	#$ff
+	bne	48$
+	mvw	File,A2
+	ldb	t2BadFile,#34
+	ldy	#0
+61$:	lda	(A2),y	; copy filename
+	beq	62$
+	sta	t2BadFile+1,y
+	iny
+	bne	61$
+62$:	ldx	#0
+63$:	lda	t2BadMs1,x
+	sta	t2BadFile+1,y
+	beq	64$
+	inx
+	iny
+	bne	63$
+64$:	jsr	Imprint
+	ldw	A2,t2BadFile
+	jsr	OKCANBox
+	cbi	sysDBData,#$01
+	beq	66$
+	ldx	#0
+	jmp	DiskError
+66$:	jsr	Imprint
+	jmp	Co2Unpack
+t2BadFile:	.block	100
+t2BadMs1:	.byte	34," is not CVT!",27,0		
+t2BadMs2:	.byte	34," is not GEOS!",27,0		
+t2Copy:	.byte	27,"Copying:",0
+t2Convert:	.byte	27,"Converting:",0
+t2UnConvert:	.byte	27,"Unconverting:",0
+
+;****************************************************
+Go2Pack:	ldw	A2,#t2Ready3
+	cpb	SrcDrv,DstDrv
+	beq	10$
+	ldw	A2,#t2Ready4
+10$:	jsr	YNBox
+	cbi	sysDBData,#$03
+	bne	12$
+	lda	SrcDrv
+	jsr	SetDevice
+	jsr	GetFirstFile	; get a filename
+	cpx	#$00
+	bne	11$
+	jmp	StartCVT
+11$:	jsr	i_CNCLBox
+	.word	t2NoFile
+12$:	jmp	HappyEnd
+Co2Pack:	lda	SrcDrv
+	jsr	SetDevice
+	jsr	GetNxtFile
+	cpx	#$00
+	bne	10$
+	jmp	StartCVT	; A0 points
+10$:	jsr	i_OKBox
+	.word	t2Done
+	jmp	HappyEnd
+
+
+StartCVT:	mvw	A0,File
+	lda	SrcDrv
+	jsr	SetDevice
+	jsr	OpenDisk
+	cpb	SrcDrv,DstDrv
+	beq	50$
+	ldw	A2,#t2Copy
+	mvw	File,A3
+	jsr	FileBar
+	mvw	File,A2
+	mvw	File,A3
+	ldw	A4,#$6000
+	ldw	A5,#$7f00
+	mvb	DstDrv,A6L
+	jsr	FileCopy
+	cpx	#0
+	beq	49$
+48$:	jmp	DiskError
+49$:	lda	DstDrv
+	jsr	SetDevice
+	jsr	OpenDisk
+50$:	ldw	A2,#t2Convert
+	mvw	File,A3
+	jsr	FileBar
+	mvw	File,A2
+	jsr	Convert
+	cpx	#0
+	bne	60$
+	jsr	Imprint
+	jmp	Co2Pack
+60$:	cpx	#$ff
+	bne	48$
+	mvw	File,A2
+	ldb	t2BadFile,#34
+	ldy	#0
+61$:	lda	(A2),y	; copy filename
+	beq	62$
+	sta	t2BadFile+1,y
+	iny
+	bne	61$
+62$:	ldx	#0
+63$:	lda	t2BadMs2,x
+	sta	t2BadFile+1,y
+	beq	64$
+	inx
+	iny
+	bne	63$
+64$:	jsr	Imprint
+	ldw	A2,t2BadFile
+	jsr	OKCANBox
+	cbi	sysDBData,#$01
+	beq	66$
+	ldx	#0
+	jmp	DiskError
+66$:	jsr	Imprint
+	jmp	Co2Pack	
+	rts
+
+.ramsect
+TRACK:	; for fun
+SECTOR:	; for fun
+File:	.block	2	; the file being worked on
+</pre></body></html>

@@ -1,0 +1,69 @@
+<!DOCTYPE html><html><head><title>Untitled</title></head><body><pre>
+;*****************************
+;*
+;*         geoBEAP II
+;* "Bo's Excellent Archive Program"
+;*
+;*      (C) 2001 Bo Zimmerman
+;*
+;*  Dedicated to Naomi Zimmerman
+;*****************************
+.output	geoBEAP_2.1a
+.header	H/geoBEAPII.rel
+.vlir
+.psect	$0400	; beginning of main
+.ramsect	$2000	; must mark end of main
+S/0geoBEAPII.rel
+S/gbMODtns.rel
+APIcommon.rel
+MODflist.rel
+MODferr.rel
+MODscrn.rel
+MODseqR.rel
+MODseqW.rel
+MODvPrg.rel
+
+.mod	1
+.psect	VPRGbase	; setup
+S/1geoBEAPII.rel
+.mod	2
+.psect	VPRGbase	; geoRLE image
+S/2gbRLE.rel
+MODsecIO.rel
+.mod	3
+.psect	VPRGbase	; geoMultiRLE images
+S/3gbRLEi.rel
+MODsecIO.rel
+.mod	4
+.psect	VPRGbase	; D64/71/81 image
+S/4gbD64i.rel
+MODsecIO.rel
+.mod	5
+.psect	VPRGbase	; geoBEAP image
+S/5gbBEAPi.rel
+MODsecIO.rel
+.mod	6
+.psect	VPRGbase	; Zipcode+4 image
+S/6gbZIP4.rel
+MODsecIO.rel
+.mod	7
+.psect	VPRGbase	; .CVT convert
+S/7gbCVT.rel
+MODfcopy.rel
+MODconvert.rel
+.mod	8
+.psect	VPRGbase	; .LNX convert
+S/8gbLNX.rel
+MODfcopy.rel
+MODconvert.rel
+.mod	9
+.psect	VPRGbase	; .ARK convert
+S/9gbARK.rel
+MODfcopy.rel
+MODconvert.rel
+
+
+
+
+
+</pre></body></html>

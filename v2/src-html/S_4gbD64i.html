@@ -1,0 +1,358 @@
+<!DOCTYPE html><html><head><title>Untitled</title></head><body><pre>
+;*****************************
+;*
+;*         geoBEAP II
+;* "Bo's Excellent Archive Program"
+;*
+;*      (C) 2001 Bo Zimmerman
+;*
+;*  Dedicated to Naomi Zimmerman
+;*****************************
+.if 	Pass1
+.noeqin
+.noglbl
+.include	GEOSequates
+.eqin
+.glbl
+.endif
+
+.psect
+	jmp	Go2647181	; VPRGbase + 0
+
+Go2647181:	cpb	SrcDrv,DstDrv
+	bne	10$
+	jsr	i_CNCLBox
+	.word	t2txt0
+	rts
+10$:	lda	PackUnpack
+	beq	11$
+	jmp	Go2Unpack
+11$:	jmp	Go2Pack
+t2txt0:	.byte	"Source and Dest. must be different!",27,0
+
+Go2Pack:	lda	SrcDrv
+	jsr	SecIOinit
+	cpx	#0
+	beq	10$
+	jmp	FError
+10$:	ldw	A4,#FileName
+	lda	#12
+	jsr	GetFilename
+	bne	11$
+99$	rts
+11$:	lda	FileName
+	beq	99$
+12$:	jsr	ChkOkPack
+	bne	99$
+	jsr	FixFNam
+	lda	DstDrv
+	jsr	SetDevice
+	jsr	OpenDisk
+	ldw	A2,#FileName
+	ldb	A3L,#$02
+	jsr	CreatSF
+	cpx	#0
+	beq	13$
+	jmp	FError
+13$:	jmp	DoPakD64
+
+DoPakD64:	ldb	TRACK,#1
+	ldb	SECTOR,#0
+	mvw	TRACK,TNSTRACK
+	jsr	TnSBar
+16$:			; no need to set src.  secio will
+	ldw	A2,#$6000
+	ldw	A3,#$77ff
+17$:	jsr	ReadSecs
+	stx	LastError
+	mvw	TRACK,TNSTRACK
+	jsr	TnSBar	; NOW BEGIN WRITE PROCESS
+	lda	DstDrv
+	jsr	SetDevice
+	;************* jsr	OpenDisk
+	mvw	A2,A3	; from read...,should be $77ff
+	dew	A3	; because it will be one beyond
+	ldw	A2,#$6000
+	jsr	PutSMem
+	cpx	#0	; any dest error at all?
+	bne	20$
+	lda	LastError	; is there more to get?
+	beq	16$
+	cmp	#2
+	beq	21$	; if error other than t&s, exit
+	cmp	#$ff
+	beq	21$	; end of disk error
+20$:	jmp	DiskError
+21$:	ldb	A2L,#130
+	jsr	ClosSF
+	jsr	Imprint
+	jsr	i_OKBox
+	.word	t2Done
+22$:	jmp	HappyEnd
+
+
+Go2Unpack:	lda	DstDrv
+	jsr	SecIOinit
+	cpx	#0
+	beq	10$
+	jmp	FError
+10$:	lda	SrcDrv
+	jsr	SetDevice
+	jsr	GetFirstFile	; get a filename
+	cpx	#$00
+	bne	11$
+	jmp	Co22
+11$:	jsr	i_CNCLBox
+	.word	t2NoFile
+	jmp	HappyEnd
+Co2Unpack:	lda	SrcDrv
+	jsr	SetDevice
+	jsr	GetNxtFile
+	cpx	#$00
+	beq	Co22
+	jsr	Imprint
+	jsr	i_OKBox
+	.word	t2Done
+	jmp	HappyEnd
+Co22:	mvw	A0,File	; now examine its disk entry
+	mvw	File,R6
+	ldb	$886e,#$ff
+	jsr	FindFile
+	cpx	#0	; did we find the file?
+	beq	11$
+	jmp	DiskError
+11$:	ldy	#$15
+	lda	(R5),y	; is it sequential type?
+	beq	12$
+	jsr	i_CNCLBox	; no, so exit
+	.word	t2BadFile
+	jmp	HappyEnd
+12$:	jsr	GetD64Type	; examine the file extension
+	jsr	ChkD64Type	; now check the dest drive
+	beq	13$	; if the dont match
+	jmp	HappyEnd
+13$:	jsr	T2ReadyYN
+	jsr	DoNxtD	; confirm the whole process now
+	cbi	sysDBData,#$03
+	beq	14$		; ready to go!
+	jmp	HappyEnd
+14$:	lda	SrcDrv	; now open the source disk
+	jsr	OpenDisk
+	mvw	File,A2
+	ldb	A3L,#0
+	jsr	OpenSF	; and open the file
+	cpx	#0
+	beq	15$
+	jmp	DiskError
+15$:	jmp	DoUnD64
+t2Done:	.byte	$18,"Operation Complete",27,0
+t2NoFile:	.byte	$18,"Select a file to unpack.",27,0
+t2BadFile:	.byte	$18,"File is not a .D64 image!",27,0
+
+
+DoUnD64:	ldb	TRACK,#1
+	ldb	SECTOR,#0
+16$:	lda	SrcDrv
+	jsr	SetDevice
+	ldw	A2,#$6000
+	ldw	A3,#$77ff
+	jsr	GetSMem
+	stx	LastError
+	cpx	#0
+	beq	18$
+	cpx	#11
+	beq	18$
+	cpx	#$ff
+	beq	18$
+17$:	jmp	DiskError
+18$:	mvw	TRACK,TNSTRACK
+	jsr	TnSBar
+			; no need to set dest.  secio will
+	mvw	A2,A3	; from read...,should be $77ff
+	ldw	A2,#$6000
+19$:	jsr	WriteSecs
+	cpx	#$ff
+	beq	99$
+	cpx	#0	; any dest error at all?
+	bne	17$
+	lda	LastError	; is there more to get?
+	beq	16$
+99$:	jsr	Imprint	; happy exit
+	jmp	Co2Unpack	; 
+
+GetD64Type:	ldb	D64Type,#1
+	ldy	#$ff
+13$:	iny
+	lda	(A0),y
+	bne	13$
+	dey
+	dey
+	dey
+	dey
+	lda	(A0),y
+	cmp	#'.'
+	beq	14$
+	rts
+14$:	iny
+	lda	(A0),y
+	cmp	#'d'
+	beq	15$
+	cmp	#'D'
+	beq	15$
+	rts
+15$:	iny
+	iny
+	lda	(A0),y
+	cmp	#'1'
+	beq	17$
+	cmp	#'4'
+	bne	16$
+	dey
+	lda	(A0),y
+	cmp	#'6'
+	bne	16$
+	ldb	D64Type,#1
+16$:	rts
+17$:	dey
+	lda	(A0),y
+	cmp	#'7'
+	bne	18$
+	ldb	D64Type,#2
+	rts
+18$:	cmp	#'8'
+	bne	19$
+	ldb	D64Type,#3
+	rts
+19$:	rts
+
+T2ReadyYN:	ldw	A2,#t2ReadyU
+	lda	D64Type
+	cmp	#1
+	bne	10$
+99$:	ldb	t2ReadyU+19,#'6'
+	ldb	t2ReadyU+20,#'4'
+	rts
+10$:	cmp	#2
+	bne	11$
+	ldb	t2ReadyU+19,#'7'
+	ldb	t2ReadyU+20,#'1'
+	rts
+11$:	cmp	#3
+	bne	99$	
+	ldb	t2ReadyU+19,#'8'
+	ldb	t2ReadyU+20,#'1'
+	rts
+t2ReadyU:	.byte	$18,"Ready to unpack .D64 file?",27,0
+
+
+ChkD64Type:	lda	DstDrv
+	jsr	DriveST
+	cmp	D64Type
+	beq	14$
+	cmp	#3
+	bge	13$
+	cbi	D64Type,#1
+	beq	14$
+13$:	dec	D64Type
+	lda	D64Type
+	asl	a
+	tay
+	lda	t2Nottab,y
+	sta	A2L
+	lda	t2Nottab+1,y
+	sta	A2H
+	jsr	CNCLBox
+	ldx	#$ff
+	rts
+14$:	ldx	#0
+	rts
+t2Not41:	.byte	$18,"Dest. Drive must be a 1541/1571.",27,0
+t2Not71:	.byte	$18,"Dest. Drive must be a 1571",27,0
+t2Not81:	.byte	$18,"Dest. Drive must be a 1581",27,0
+t2Nottab:	.word	t2Not41,t2Not71,t2Not81,0
+
+; ** check to see if the source drive can be packed
+ChkOkPack:	lda	SrcDrv
+	jsr	DriveST
+	sta	D64Type
+	cmp	#1	; 1541 drive
+	beq	10$
+	cmp	#2	; 1571 drive
+	bne	16$
+	lda	SrcDrv
+	jsr	SetDevice
+	ldw	R4,#$6000
+	ldb	R1L,#40
+	ldb	R1H,#0
+	jsr	GetBlock
+	cpx	#0
+	beq	11$
+	ldb	D64Type,#1
+	bra	10$
+16$:	cmp	#3	; 1581 drive
+	beq	12$
+	jsr	i_CNCLBox
+	.word	t2NoDSup
+	ldx	#1
+	rts
+10$:	ldw	A4,#690	; .D64
+	ldw	D64TypW,#t2fnTyp1
+	bra	13$
+11$:	ldw	A4,#1378	; .D71
+	ldw	D64TypW,#t2fnTyp2
+	bra	13$
+12$:	ldw	A4,#3230	; .D81
+	ldw	D64TypW,#t2fnTyp3
+13$:	lda	DstDrv
+	jsr	SetDevice
+	jsr	GetDirHead
+	ldw	R5,#$8200
+	jsr	CalcBlksFree
+	cpw	R4,A4
+	blt	15$	
+	ldx	#0
+	rts
+15$:	jsr	i_CNCLBox
+	.word	t2NoBlks
+	ldx	#1
+	rts	
+t2NoDSup:	.byte	$18,"Drive type not supported.",27,0	
+t2NoBlks:	.byte	$18,"Not enough space on dest.",27,0
+t2fnTyp1:	.byte	".D64",0
+t2fnTyp2:	.byte	".D71",0
+t2fnTyp3:	.byte	".D81",0
+
+FixFNam:	ldw	A0,#FileName
+10$:	ldy	#0
+	lda	(A0),y
+	beq	16$
+	cmp	#'.'
+	bne	15$
+	inw	A0
+	lda	(A0),y
+	beq	16$
+	cmp	#'D'
+	beq	11$
+	cmp	#'d'
+	bne	15$
+11$:	rts
+15$:	inw	A0
+	bra	10$
+	rts
+16$:	mvw	D64TypW,A4	; needs extension
+17$:	lda	(A4),y	; copy extension
+	sta	(A0),y
+	beq	11$
+	iny
+	bne	17$
+	rts
+
+.ramsect
+File:	.block	2
+D64Type:	.block	1
+D64TypW:	.block	2
+LastError:	.block	1
+ProgOffset:	.block	1
+LastTnS:	.block	2
+LastMem:	.block	2
+</pre></body></html>

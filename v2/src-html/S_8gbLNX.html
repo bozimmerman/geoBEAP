@@ -1,0 +1,1087 @@
+<!DOCTYPE html><html><head><title>Untitled</title></head><body><pre>
+;*****************************
+;*
+;*         geoBEAP II
+;* "Bo's Excellent Archive Program"
+;*
+;*      (C) 2001 Bo Zimmerman
+;*
+;*  Dedicated to Naomi Zimmerman
+;*****************************
+.if 	Pass1
+.noeqin
+.noglbl
+.include	GEOSequates
+.eqin
+.glbl
+.endif
+
+.psect
+	jmp	Go2LNX	; VPRGbase + 0
+
+Go2LNX:	lda	PackUnpack
+	beq	11$
+	jmp	Go2Unpack
+11$:	jmp	Go2Pack
+
+;****************************************************
+Go2Unpack:
+	cpb	SrcDrv,DstDrv
+	bne	90$
+	jsr	numPicked
+	cpx	#1
+	bgt	13$
+90$:	jsr	GetFirstFile	; get a filename
+	cpx	#$00
+	bne	11$
+	ldw	A2,#t2Ready1
+	cpb	SrcDrv,DstDrv
+	beq	10$
+	ldw	A2,#t2Ready2
+10$:	jsr	YNBox
+	cbi	sysDBData,#$03
+	bne	12$
+	lda	SrcDrv
+	jsr	SetDevice
+	jmp	StartUnLNX
+11$:	jsr	i_CNCLBox
+	.word	t2NoDFile
+12$:	jmp	HappyEnd
+13$:	jsr	i_CNCLBox
+	.word	t2NoMulti
+	bra	12$
+Co2Unpack:	cpb	SrcDrv,DstDrv
+	beq	10$
+	lda	SrcDrv
+	jsr	SetDevice
+	jsr	GetNxtFile
+	cpx	#00
+	bne	10$
+	jmp	StartUnLNX
+10$:	jsr	i_OKBox
+	.word	t2Done
+	jmp	HappyEnd
+t2Done:	.byte	$18,"Operation Complete",27,0
+t2NoDFile:	.byte	$18,"Select a file to unpack.",27,0
+t2NoMulti:	.byte	$18,"Select only one (1) file.",27,0
+t2NoFile:	.byte	$18,"Select one or more files.",27,0
+t2Ready1:	.byte	$18,"Ready to de-LYNX file?",27,0
+t2Ready2:	.byte	$18,"Copy and de-LYNX file?",27,0
+t2Ready3:	.byte	$18,"Ready to LYNX file(s)?",27,0
+t2Ready4:	.byte	$18,"Copy and LYNX file(s)?",27,0
+t2BadFile:	.block	100
+t2BadMs1:	.byte	34," is not LYNXed!",27,0		
+t2Copy:	.byte	27,"Copying:",0
+t2Lynx:	.byte	27,"LYNXing:",0
+t2Clean:	.byte	27,"Closing:",0
+t2DeLynx:	.byte	27,"De-LYNXing:",0
+t2Convert:	.byte	27,"Converting:",0
+t2UnConvert:	.byte	27,"Unconverting:",0
+t2UnLink:	.byte	27,"Re-Linking:",0
+
+StartUnLNX:	mvw	A0,File
+	ldw	FNTabE,#$6000
+	lda	SrcDrv
+	jsr	SetDevice
+	jsr	OpenDisk
+	cpb	SrcDrv,DstDrv
+	beq	50$
+	ldw	A2,#t2Copy
+	mvw	File,A3
+	jsr	FileBar
+	mvw	File,A2
+	mvw	File,A3
+	ldw	A4,#$6000
+	ldw	A5,#$7f00
+	mvb	DstDrv,A6L
+	jsr	FileCopy
+	cpx	#0
+	beq	50$
+48$:	jmp	DiskError
+50$:	lda	DstDrv
+	jsr	SetDevice
+	jsr	OpenDisk
+	mvw	File,A2
+	ldb	A3L,#$ff
+	jsr	OpenSF
+	cpx	#0
+	bne	48$
+	mvw	$8401,HeadTNS
+	jsr	isLYNX
+	beq	60$
+59$:	jmp	notLYNX
+60$:	jsr	inNum
+	bne	62$
+	mvw	A2,NumFiles
+	jsr	findLHead
+	bne	62$
+61$:	jsr	deLYNX
+	beq	65$
+	cpx	#$ff
+	beq	59$
+62$:	jmp	DiskError
+65$:	jsr	deLYNXfile
+	bne	62$
+	dew	NumFiles
+	cwi	NumFiles,#0
+	bne	61$
+	jsr	doneDLYNX
+	bne	62$
+	jsr	Imprint
+	jmp	Co2Unpack
+
+
+
+deLYNX:	ldw	A2,#FNBuf
+	jsr	inStr
+	bne	24$
+	lda	FNBuf
+	beq	23$
+	ldw	A2,#t2DeLynx
+	ldw	A3,#FNBuf
+	jsr	FileBar
+	cwi	ThisTNS,#0
+	beq	23$
+	jsr	inNum
+	bne	24$
+	cwi	A2,#0
+	beq	23$
+	mvw	A2,FileBlocks
+	ldw	A2,#SafeBuf
+	jsr	inStr
+	bne	24$
+	ldy	#0
+20$:	lda	TypeTab,y
+	cmp	SafeBuf
+	beq	25$
+	iny
+	cpy	#7
+	blt	20$
+23$:	ldx	#$ff
+24$:	rts
+25$:	jmp	deLYNX2
+
+
+deLYNX2:	ldw	RelInfo,#0
+	lda	TypeTab2,y
+	sta	TypeInfo
+	cmp	#$84
+	bne	30$
+	jsr	inNum
+	bne	24$
+	cwi	A2,#0
+	beq	23$
+	mvw	A2,RelInfo
+30$:	cbi	NumFiles,#1
+	beq	33$
+	jsr	inNum
+	bne	24$
+	mvw	A2,FileLSize
+	cwi	A2,#0
+	beq	23$
+33$:	mvw	FNTabE,A0
+	ldx	#0
+	ldy	#0
+35$:	lda	FNBuf,x
+	sta	(A0),y
+	beq	40$
+	inw	A0
+	inx
+	bne	35$
+40$:	mvw	A0,FNTabE
+	inw	FNTabE
+	ldx	#0
+	rts
+23$:	ldx	#$ff
+24$:	rts
+
+
+deLYNXfile:	ldb	R10L,#0
+	jsr	GetFreeDirBlk	; now find a directory entry
+	cpx	#0
+	beq	10$	; a error getting dir entry!
+	rts
+10$:	mvw	R1,DirTNS
+	sty	DirPTR
+	ldx	#0
+	lda	TypeInfo
+	sta	$8000,y
+	iny
+	lda	ThisTNS
+	sta	$8000,y
+	iny
+	lda	ThisTNS+1
+	sta	$8000,y
+	iny
+20$:	lda	FNBuf,x
+	beq	25$
+	sta	$8000,y
+	iny
+	inx
+	bne	20$
+25$:	cpx	#16
+	beq	30$
+	lda	#$a0
+	sta	$8000,y
+	iny
+	inx
+	bne	25$
+30$:	lda	#0
+	sta	$8000,y
+	iny
+	sta	$8000,y
+	iny
+	lda	RelInfo
+	sta	$8000,y
+	iny
+	lda	#0
+	sta	$8000,y
+	tya
+	add	#6
+	tay
+	lda	FileBlocks
+	sta	$8000,y
+	iny
+	lda	FileBlocks+1
+	sta	$8000,y
+	jmp	unLINK
+
+unLINK:	lda	TypeInfo
+	and	#$1f
+	cmp	#4
+	beq	50$
+	jmp	unLINK2
+50$:	jsr	CalcRelBlocks
+	cpx	#0
+	bne	24$
+	sbw	RelBlocks,FileBlocks
+21$:	mvw	ThisTNS,R1
+	ldw	R4,#$8100
+	jsr	GetBlock
+	cpx	#0
+	beq	25$
+24$:	rts
+25$:	mvw	$8100,ThisTNS
+	dew	RelBlocks
+	cwi	RelBlocks,#0
+	bne	21$
+30$:	lda	$8100
+	beq	40$
+	ldw	$8100,#$ff00
+	jsr	PutBlock
+	cpx	#0
+	bne	24$
+40$:	ldy	DirPTR
+	iny
+	lda	ThisTNS
+	sta	$8000,y
+	iny
+	lda	ThisTNS+1
+	sta	$8000,y
+	lda	DirPTR
+	add	#$13
+	tay
+	lda	RelTNS
+	sta	$8000,y
+	iny
+	lda	RelTNS+1
+	sta	$8000,y
+	jmp	unLINK2
+
+
+unLINK2:
+50$:	mvw	ThisTNS,R1
+	ldw	R4,#$8100
+	jsr	GetBlock
+	cpx	#0
+	bne	99$
+	mvw	$8100,ThisTNS
+	dew	FileBlocks
+	cwi	FileBlocks,#0
+	bne	50$
+60$:	lda	$8100
+	beq	70$
+	ldb	$8100,#0
+	mvb	FileLSize,$8101
+	jsr	PutBlock
+	cpx	#0
+	bne	99$
+70$:	ldw	R4,#$8000
+	mvw	DirTNS,R1
+	jsr	PutBlock
+	cpx	#0
+99$:	rts
+
+CalcRelBlocks:
+	mvw	FileBlocks,SafeBuf	; first calc relblocks
+	ldw	RelBlocks,#1
+10$:	cwi	SafeBuf,#120
+	blt	20$
+	svw	#120,SafeBuf
+	inw	RelBlocks
+	bra	10$
+20$:	mvw	ThisTNS,RelTNS
+	mvw	ThisTNS,R1
+	ldw	R4,#$8100
+	jsr	GetBlock
+	cpx	#0
+	bne	24$
+	lda	$8102
+	beq	25$
+	inw	RelBlocks	; an "extra" for 1581-types
+25$:	ldx	#0
+24$:	rts
+
+doneDLYNX:	mvw	File,R0
+	jsr	DeleteFile
+	cpx	#0
+	beq	10$
+	rts
+10$:	ldw	FNTabP,#$6000	
+doneDAR2:	ldw	A2,#t2UnConvert
+	mvw	FNTabP,A3
+	jsr	FileBar
+	mvw	FNTabP,A2
+	jsr	unConv
+	cpx	#0
+	beq	20$
+	cpx	#$ff
+	bne	19$
+	mvw	CONVdptr,R5
+	ldy	#0
+	lda	(R5),y
+	and	#$1f
+	cmp	#4
+	bne	20$
+	iny
+	lda	(R5),y
+	sta	FCOPbtns
+	iny
+	lda	(R5),y
+	sta	FCOPbtns+1
+	ldy	#$13
+	lda	(R5),y
+	sta	FCOPitns
+	iny
+	lda	(R5),y
+	sta	FCOPitns+1
+	ldw	FCOPbufS,#$7d00
+	ldw	A2,#t2UnLink
+	mvw	FNTabP,A3
+	jsr	FileBar
+	jsr	GetDirHead
+	jsr	FCOPreLink
+	jsr	PutDirHead
+	bra	20$
+19$:	cpx	#0
+	rts
+20$:	ldy	#0
+	inw	FNTabP
+	cpw	FNTabP,FNTabE
+	bge	30$
+	mvw	FNTabP,A0
+	ldy	#0
+	lda	(A0),y
+	bne	20$
+	inw	FNTabP
+	cpw	FNTabP,FNTabE
+	bge	30$
+	jmp	doneDAR2
+30$:	ldx	#0
+	rts
+
+findLHead:	mvw	HeadTNS,ThisTNS
+	mvw	HeadSize,A0
+10$:	mvw	ThisTNS,R1
+	ldw	R4,#$8100
+	jsr	GetBlock
+	cpx	#0
+	bne	99$
+	dec	A0L
+	bne	11$
+	mvw	$8100,ThisTNS
+	ldw	$8100,#$ff00
+	jsr	PutBlock
+	cpx	#0
+99$:	rts
+11$:	mvw	$8100,ThisTNS
+	bra	10$
+
+isLYNX:	jsr	GetSByte	; check for old LYNX
+	cpx	#0
+	bne	12$
+	cmp	#$20	; first space is OLD LYNX
+	beq	20$
+10$:	ldb	A0L,#3	; number of 0s
+11$:	jsr	GetSByte
+	cpx	#0
+	beq	13$
+12$:	rts
+13$:	cmp	#0
+	bne	10$
+	dec	A0L	; only 3 will do...
+	bne	11$
+20$:	ldb	A0L,#0	; index into ChrBuf
+21$:	jsr	GetSByte
+	cpx	#0
+	bne	12$
+	cmp	#$0d
+	beq	21$
+	cmp	#$20	; now get up to sig
+	beq	21$	; which is number
+	cmp	#'0'	; of directory blocks
+	blt	30$
+	cmp	#'9'
+	bgt	30$
+	ldy	A0L
+	sta	ChrBuf,y
+	inc	A0L
+	bra	21$
+30$:	pha
+	ldy	A0L
+	lda	#0
+	sta	ChrBuf,y	; get # dir blks from sig
+	jsr	ChrToDec
+	mvw	A2,HeadSize
+	ldw	A2,#FNTab
+	ldb	A0L,#0
+	ldb	A0H,#$ff
+	pla
+	bra	35$
+31$:	jsr	GetSByte	; inspect the header
+	cpx	#0
+	beq	33$
+32$:	rts
+33$:	cmp	#$0d	; reading a byte at a time
+	bne	35$
+	ldx	A0H	; A0H has return code
+	rts
+35$:	ldy	A0L
+	cmp	t2isLYNX,y	; look for the word "LYNX"
+	bne	37$
+	inc	A0L
+	cpb	A0L,#4
+	blt	31$
+	ldb	A0H,#0	; kaplah!
+37$:	ldb	A0L,#0	
+	beq	31$
+; now clear all the way to end of signiture
+t2isLYNX:	.byte	"LYNX"
+
+notLYNX:	mvw	File,A2
+	ldb	t2BadFile,#34
+	ldy	#0
+61$:	lda	(A2),y	; copy filename
+	beq	62$
+	sta	t2BadFile+1,y
+	iny
+	bne	61$
+62$:	ldx	#0
+63$:	lda	t2BadMs1,x
+	sta	t2BadFile+1,y
+	beq	64$
+	inx
+	iny
+	bne	63$
+64$:	jsr	Imprint
+	ldw	A2,t2BadFile
+	jsr	CNCLBox
+	jmp	HappyEnd
+
+
+inStr:	ldb	A0L,#0
+10$:	jsr	GetSByte
+	cpx	#0
+	beq	11$
+	rts
+11$:	cmp	#$0d
+	beq	20$
+	ldy	A0L
+	sta	(A2),y
+	inc	A0L
+	bne	10$
+20$:	ldy	A0L
+	lda	#0
+	sta	(A2),y
+	tax
+	rts
+
+inNum:	ldb	A0L,#0
+10$:	jsr	GetSByte
+	cpx	#0
+	beq	11$
+	rts
+11$:	cmp	#$0d
+	beq	20$
+	cmp	#'0'
+	blt	10$
+	cmp	#'9'
+	bgt	10$
+	ldy	A0L
+	sta	ChrBuf,y
+	inc	A0L
+	bne	10$
+20$:	ldy	A0L
+	lda	#0
+	sta	ChrBuf,y
+	jsr	ChrToDec
+	ldx	#0
+	rts
+
+numPicked:	ldx	#0
+	ldy	#$00
+10$:	lda	SrcPicks,y
+	beq	11$
+	inx
+11$:	dey
+	bne	10$
+	rts
+
+
+;****************************************************
+Go2Pack:	ldw	A4,#FileName
+	lda	#12
+	jsr	GetFilename
+	beq	12$
+	lda	FileName
+	beq	12$
+	jsr	FixFNam
+	ldw	NumFiles,#0
+	ldw	FNTabE,#FNTab
+	ldw	A2,#t2Ready3
+	cpb	SrcDrv,DstDrv
+	beq	10$
+	ldw	A2,#t2Ready4
+10$:	jsr	YNBox
+	cbi	sysDBData,#$03
+	bne	12$
+	lda	SrcDrv
+	jsr	SetDevice
+	jsr	GetFirstFile	; get a filename
+	cpx	#$00
+	bne	11$
+	jmp	StartLNX
+11$:	jsr	i_CNCLBox
+	.word	t2NoFile
+12$:	jmp	HappyEnd
+Co2Pack:	lda	SrcDrv
+	jsr	SetDevice
+	jsr	GetNxtFile
+	cpx	#$00
+	bne	10$
+	jmp	StartLNX	; A0 points
+10$:	jmp	ContLNX
+
+StartLNX:	mvw	A0,File
+	lda	SrcDrv
+	jsr	SetDevice
+	jsr	OpenDisk
+	cpb	SrcDrv,DstDrv
+	beq	50$
+	ldw	A2,#t2Copy
+	mvw	File,A3
+	jsr	FileBar
+	mvw	File,A2
+	mvw	File,A3
+	ldw	A4,#$6000
+	ldw	A5,#$7f00
+	mvb	DstDrv,A6L
+	jsr	FileCopy
+	cpx	#0
+	beq	49$
+99$:	jmp	DiskError
+49$:	mvw	FCOPdptr,R5
+	mvw	FCOPdtns,R1
+	jsr	SaveTabE
+	lda	DstDrv
+	jsr	SetDevice
+	jsr	OpenDisk
+	bra	51$
+50$:	mvw	File,R6
+	ldb	$886e,#$ff	; find source file
+	jsr	FindFile
+	cpx	#0
+	bne	99$
+	jsr	SaveTabE
+51$:	inw	NumFiles
+	ldw	A2,#t2Convert
+	mvw	File,A3
+	jsr	FileBar
+	mvw	File,A2
+	jsr	Convert
+	cpx	#0
+	bne	60$
+	jsr	Imprint
+	jmp	Co2Pack
+60$:	cpx	#$ff
+	bne	99$
+	jsr	Imprint
+	jmp	Co2Pack
+
+ContLNX:	lda	DstDrv
+	jsr	SetDevice
+	jsr	OpenDisk
+	ldw	A2,#FileName
+	ldb	A3L,#$00	; don't confuse BEAP routines!!
+	jsr	CreatSF
+	cpx	#0
+	beq	23$
+22$:	jmp	DiskError
+23$:	ldw	LastTNS,#$0000
+	ldw	TotBlks,#0
+	jsr	LNXhead
+	cpx	#0
+	bne	22$
+	ldw	FNTabP,#FNTab
+	jmp	PackLNX
+12$:	jmp	HappyEnd
+Co3Pack:	avw	#4,FNTabP
+	cpw	FNTabP,FNTabE
+	bge	10$
+	jmp	PackLNX
+10$:	ldw	A2,#t2Clean
+	ldw	A3,#FileName
+	jsr	FileBar
+	ldb	A2L,#130
+	mvw	SIOWFsize,HeadSize
+	adw	TotBlks,SIOWFsize ; make the right size
+	jsr	ClosSF
+	cpx	#0
+	bne	11$
+	jsr	DoneLYNX
+	beq	12$
+11$:	jmp	DiskError
+12$:	jsr	i_OKBox
+	.word	t2Done
+	jmp	HappyEnd
+
+	
+
+PackLNX:	jsr	GetLNXFile
+	bne	99$
+	mvw	DirPTR,R5
+	jsr	SaveR5TS
+	ldw	A2,#t2Lynx
+	mvw	File,A3
+	jsr	FileBar
+	ldw	FileBlocks,#0
+	lda	LastTNS
+	bne	11$
+	mvw	ThisTNS,FirstTNS
+	bra	20$
+11$:	mvw	ThisTNS,$8100
+	mvw	LastTNS,R1
+	ldw	R4,#$8100
+	jsr	PutBlock	; do the LINKING!
+	cpx	#0
+	beq	20$
+99$:	rts
+20$:	jsr	PackLot
+	bne	99$
+	lda	RelTNS
+	beq	70$
+	mvw	RelTNS,$8100
+	mvw	ThisTNS,R1
+	ldw	R4,#$8100
+	jsr	PutBlock	; Link REL to rest
+	cpx	#0
+	bne	99$
+	mvw	RelTNS,ThisTNS
+	ldw	RelTNS,#0
+	jsr	PackLot
+	bne	99$
+70$:	mvw	ThisTNS,LastTNS
+	jsr	PutEntry
+	bne	99$
+	jmp	Co3Pack
+
+
+DoneLYNX:	ldw	R4,#$8100
+	mvw	SIOWTnS,R1
+	jsr	GetBlock
+	cpx	#0
+	beq	10$
+99$:	rts
+10$:	mvw	FirstTNS,$8100
+	jsr	PutBlock	; re-save first block
+	cpx	#0
+	bne	99$
+	ldw	R4,#$8100
+	mvw	HeadTNS,R1
+	jsr	GetBlock
+	cpx	#0
+	bne	99$
+	mvw	HeadSize,A2
+	jsr	DecToChr
+	ldx	#$62
+11$:	lda	ChrBuf,y
+	beq	15$
+	sta	$8100,x
+	inx
+	iny
+	bne	11$
+15$:	ldw	R4,#$8100
+	mvw	HeadTNS,R1
+	jsr	PutBlock	; re-save first block
+	cpx	#0
+	bne	99$
+	ldw	A2,#FNTab	; start deleting everything
+20$:	cpw	A2,FNTabE
+	blt	30$
+	ldx	#0
+29$:	rts
+30$:	ldy	#0
+	lda	(A2),y
+	sta	R1L
+	iny
+	lda	(A2),y
+	sta	R1H
+	ldw	R4,#$8000
+	jsr	GetBlock
+	cpx	#0
+	bne	29$
+	ldy	#2
+	lda	(A2),y
+	sta	R5L
+	iny
+	lda	(A2),y
+	sta	R5H
+	ldy	#0
+	tya
+	sta	(R5),y
+	jsr	PutBlock
+	cpx	#0
+	bne	29$
+	avw	#4,A2
+	bra	20$
+
+LNXhead:	ldb	SafeBuf,#0	; write mostly full header
+10$:	ldy	SafeBuf
+	lda	LYNXHead,y
+	jsr	PutSByte
+	cpx	#0
+	beq	12$
+11$:	rts
+12$:	inc	SafeBuf
+	cbi	SafeBuf, #125
+	blt	10$
+	mvw	NumFiles,A2
+	jsr	DecToChr
+15$:	ldy	#0
+	lda	(A2),y
+	beq	20$
+	jsr	PutSByte
+	cpx	#0
+	bne	11$
+	inw	A2
+	bra	15$
+20$:	jsr	OutSPCR
+	bne	11$
+	mvw	SIOWTnS,HeadTNS
+	ldx	#0
+	rts
+LYNXHead:	; 125 bytes
+.byte $01,$08,$5b,$08,$0a,$00,$97,$35,$33,$32,$38,$30,$2c,$30,$3a	,$97
+.byte $35,$33,$32,$38, $31,$2c, $30,$3a,$97,$36,$34,$36,$2c,$c2,$28,$31
+.byte $36,$32,$29,$3a,$99,$22, $93,$11, $11, $11, $11,$11, $11,$11,$11, $22
+.byte $3a,$99,$22,$20,$20,$20, $20,$20,$55,$53,$45,$20,$4c,$59,$4e,$58
+.byte $20,$54,$4f,$20,$44,$49, $53,$53,$4f,$4c,$56,$45,$20,$54,$48,$49
+.byte $53,$20,$46,$49,$4c,$45,$22,$3a,$89,$31,$30,$00,$00,$00,$0d,$20
+.byte $20,$20,$20,$2a,$4c,$59,$4e,$58,$20,$58,$56,$20,$20,$42,$59,$20
+.byte $57,$49,$4c,$4c,$20,$43,$4f,$52,$4c,$45,$59,$0d,$20
+
+
+PackLot:
+20$:	inw	FileBlocks	; loop through file blocks
+	inw	TotBlks
+	mvw	ThisTNS,R1
+	ldw	R4,#$8100
+	jsr	GetBlock
+	cpx	#0
+	bne	99$
+	lda	$8100
+	beq	30$
+	mvw	$8100,ThisTNS
+	bra	20$
+30$:	ldx	#0
+99$:	rts
+
+FixFNam:	ldw	A0,#FileName
+10$:	ldy	#0
+	lda	(A0),y
+	beq	16$
+	cmp	#'.'
+	bne	15$
+	inw	A0
+	lda	(A0),y
+	beq	16$
+	cmp	#'L'
+	beq	11$
+	cmp	#'l'
+	bne	15$
+11$:	rts
+15$:	inw	A0
+	bra	10$
+	rts
+16$:	ldw	A4,#t2fnExt	; needs extension
+17$:	lda	(A4),y	; copy extension
+	sta	(A0),y
+	beq	11$
+	iny
+	bne	17$
+	rts
+t2fnExt:	.byte	".LNX",0
+
+GetLNXFile:	ldw	RelTNS,#0
+	mvw	FNTabP,A0
+	ldy	#0
+	lda	(A0),y
+	sta	R1L
+	iny
+	lda	(A0),y
+	sta	R1H
+	ldw	R4,#$8000
+	jsr	GetBlock
+	cpx	#0
+	beq	10$
+	rts
+10$:	ldy	#2
+	lda	(A0),y
+	sta	R5L
+	iny
+	lda	(A0),y
+	sta	R5H
+	mvw	R5,DirPTR
+	ldy	#3
+20$:	lda	(R5),y
+	beq	30$
+	cmp	#$a0
+	beq	30$
+	sta	FNBuf-3,y
+	iny
+	cpy	#$13
+	blt	20$
+30$:	lda	#0
+	sta	FNBuf-3,y
+	ldw	File,#FNBuf
+	ldy	#0
+	lda	(R5),y
+	and	#$1f
+	cmp	#$04
+	bne	70$
+	mvw	ThisTNS,RelTNS
+	ldy	#$13
+	lda	(R5),y
+	sta	ThisTNS
+	iny
+	lda	(R5),y
+	sta	ThisTNS
+70$:	ldx	#0
+	rts
+
+
+DecToChr:	ldy	#0	; value in A2, returns Y index
+	lda	#'0'	; into ChrBuf
+10$:	sta	ChrBuf,y
+	iny
+	cpy	#3
+	blt	10$
+	ldy	#0
+11$:	cwi	A2,#100
+	blt	20$
+	lda	ChrBuf,y
+	add	#1
+	sta	ChrBuf,y
+	svw	#100,A2
+	bra	11$
+20$:	iny
+21$:	cwi	A2,#10
+	blt	30$
+	lda	ChrBuf,y
+	add	#1
+	sta	ChrBuf,y
+	svw	#10,A2
+	bra	21$
+30$:	iny
+31$:	lda	A2L	; the ones place
+	clc
+	adc	ChrBuf,y
+	sta	ChrBuf,y
+40$:	iny
+	lda	#0
+	sta	ChrBuf,y
+	ldy	#0
+	ldw	A2,#ChrBuf
+45$:	lda	ChrBuf,y
+	cmp	#'0'
+	bne	50$
+	iny
+	inw	A2
+	bra	45$
+50$:	rts
+
+ChrToDec:	ldw	A2,#0
+	ldy	#$ff
+10$:	iny
+	lda	ChrBuf,y
+	bne	10$
+15$:	cpy	#0
+	bne	20$
+19$:	rts
+20$:	dey		; 1s first
+21$:	lda	ChrBuf,y
+	cmp	#'0'
+	ble	30$
+	inw	A2
+	lda	ChrBuf,y
+	sub	#1
+	sta	ChrBuf,y
+	bra	21$
+30$:	cpy	#0
+	beq	19$
+	dey		; 10s next
+31$:	lda	ChrBuf,y
+	cmp	#'0'
+	ble	40$
+	avw	#10,A2
+	lda	ChrBuf,y
+	sub	#1
+	sta	ChrBuf,y
+	bra	31$
+40$:	cpy	#0
+	beq	19$
+	dey		; 100s last
+41$:	lda	ChrBuf,y
+	cmp	#'0'
+	ble	50$
+	avw	#100,A2
+	lda	ChrBuf,y
+	sub	#1
+	sta	ChrBuf,y
+	bra	41$
+50$:	rts
+
+PutEntry:	mvw	File,A2
+	jsr	PutSString
+	cpx	#0
+	bne	99$
+	jsr	OutCR
+	bne	99$
+	jsr	OutSpace
+	bne	99$
+	mvw	FileBlocks,A2
+	jsr	DecToChr
+	jsr	PutSString
+	cpx	#0
+	bne	99$
+	jsr	OutSPCR
+	bne	99$
+	lda	TypeInfo
+	jsr	PutSByte
+	cpx	#0
+	bne	99$
+	jsr	OutSPCR
+	bne	99$
+	lda	RelInfo
+	beq	10$
+	jsr	OutSpace
+	bne	99$
+	ldb	A2H,#0
+	mvb	RelInfo,A2L
+	jsr	DecToChr
+	jsr	PutSString
+	cpx	#0
+	bne	99$
+	jsr	OutSPCR
+	bne	99$
+10$:	jsr	OutSpace
+	bne	99$
+	ldb	A2H,#0
+	mvb	$8101,A2L
+	jsr	DecToChr
+	jsr	PutSString
+	cpx	#0
+	bne	99$
+	jsr	OutSPCR
+99$:	rts
+
+SaveR5TS:	ldy	#1
+	lda	(R5),y
+	sta	ThisTNS
+	iny
+	lda	(R5),y
+	sta	ThisTNS+1
+	ldw	RelInfo,#0
+	ldy	#0
+	lda	(R5),y
+	and	#$1f
+	tay
+	lda	TypeTab,y
+	sta	TypeInfo
+	cmp	#'R'
+	bne	10$
+	ldy	#21
+	lda	(R5),y	; relative file info
+	sta	RelInfo
+10$:	rts
+TypeTab:	.byte	'D','S','P','U','R','C','I'
+TypeTab2:	.byte	$80,$81,$82,$83,$84,$85,$86
+
+
+SaveTabE:	mvw	FNTabE,A0
+	ldy	#0
+	lda	R1L
+	sta	(A0),y
+	iny
+	lda	R1H
+	sta	(A0),y
+	iny
+	lda	R5L
+	sta	(A0),y
+	iny
+	lda	R5H
+	sta	(A0),y
+	avw	#4,FNTabE
+	rts
+
+
+
+OutSpace:	lda	#32
+	jsr	PutSByte
+	cpx	#0
+	rts
+OutCR:	lda	#13
+	jsr	PutSByte
+	cpx	#0
+	rts
+OutSPCR:	jsr	OutSpace
+	bne	10$
+	jsr	OutCR
+10$:	rts
+
+.ramsect
+TRACK:	; for fun
+SECTOR:	; for fun
+TotBlks:	.block	2	; total number of LYNXed blocks
+SafeBuf:	.block	10	; for saving registers
+File:	.block	2	; the file being worked on
+DirTNS:	.block	2	; This files directory TNS
+DirPTR:	.block	2	; This files directory pointer 
+NumFiles:	.block	2	; duh
+FNTabE:	.block	2	; end of file pointer table
+FNTabP:	.block	2	; current file pointer
+ChrBuf:	.block	10	; buffer of dectoascii 
+HeadTNS:	.block	2	; track and sector of lynx head
+HeadSize:	.block	2	; number of head blocks
+FirstTNS:	.block	2	; first file tns
+ThisTNS:	.block	2	; work tracknsector pointer	
+LastTNS:	.block	2	; last file tns
+RelTNS:	.block	2	; relative file tns
+RelInfo:	.block	2	; relative file info
+TypeInfo:	.block	1	; file type
+RelBlocks:	.block	2	; total side sector blocks
+FileBlocks:	.block	2	; number of blocks in file
+FileLSize:	.block	2	; number of bytes in last block
+FNTab:	.block	400*4	; 4 bytes per file
+FNBuf:	.block	30	; filename buffer
+</pre></body></html>

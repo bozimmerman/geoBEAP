@@ -1,0 +1,44 @@
+<!DOCTYPE html><html><head><title>Untitled</title></head><body><pre>
+;*****************************
+;*
+;*         geoBEAP II
+;* "Bo's Excellent Archive Program"
+;*
+;*      (C) 2001 Bo Zimmerman
+;*
+;*  Dedicated to Naomi Zimmerman
+;*****************************
+
+.if	Pass1		;Only need to include this file
+			;during assembler's first pass.
+.include	GEOSequates	;get GEOS definitions
+.endif
+
+	.header		;start of header section
+
+	.word	0	;first two bytes = 0
+	.byte	3		;width in bytes
+	.byte	21	;and height in scanlines of:
+<img src="00063.png" />	.byte	$80 | 3	;Commodore type, bit 7 S
+	.byte	APPLICATION	;Geos file type
+	.byte	VLIR	;Geos file structure type
+	.word	ProgStart	;load address of program
+	.word	$03ff	;end address, needed for
+				;desk accessories.
+	.word	ProgStart	;init address of program
+	.byte	"geoBEAP     2.1a",0,0,0,64
+			;perm. filename 12 chars,
+			;4 char version number,
+			;3 zeroes,
+			;40/80 column flag.
+	.byte	"Bo Zimmerman       ",0
+			;19 character author name
+
+	;end of header section which is checked for accuracy
+	.block	160-117	;skip 43 bytes...
+	.byte	"geoBEAP creates and dissolves numerous "
+	.byte	"disk image and file archive formats.",0
+	.endh
+
+
+</pre></body></html>

@@ -1,0 +1,640 @@
+<!DOCTYPE html><html><head><title>Untitled</title></head><body><pre>
+;*****************************
+;*
+;*         geoBEAP II
+;* "Bo's Excellent Archive Program"
+;*
+;*      (C) 2001 Bo Zimmerman
+;*
+;*  Dedicated to Naomi Zimmerman
+;*****************************
+.if 	Pass1
+.noeqin
+.noglbl
+.include	GEOSequates
+.eqin
+.glbl
+.endif
+
+.psect
+	jmp	Go2BEAP	; VPRGbase + 0
+
+Go2BEAP:	cpb	SrcDrv,DstDrv
+	bne	10$
+	jsr	i_CNCLBox
+	.word	t2txt0
+	rts
+10$:	lda	PackUnpack
+	beq	11$
+	jmp	Go2Unpack
+11$:	jmp	Go2Pack
+t2txt0:	.byte	"Source and Dest. must be different!",27,0
+
+;****************************************************
+Go2Unpack:
+	lda	DstDrv
+	jsr	SecIOinit
+	cpx	#0
+	beq	10$
+	jmp	DiskError
+10$:	lda	SrcDrv
+	jsr	SetDevice
+	jsr	GetFirstFile	; get a filename
+	cpx	#$00
+	bne	11$
+	jmp	Co22
+11$:	jsr	i_CNCLBox
+	.word	t2NoFile
+	jmp	HappyEnd
+Co2Unpack:	lda	SrcDrv
+	jsr	SetDevice
+	jsr	GetNxtFile
+	cpx	#$00
+	beq	Co22
+	jsr	i_OKBox
+	.word	t2Done
+	jmp	HappyEnd
+Co22:	mvw	A0,File	; now examine its disk entry
+	mvw	File,R6
+	ldb	$886e,#$ff
+	jsr	FindFile
+	cpx	#0	; did we find the file?
+	beq	11$
+	jmp	DiskError
+11$:	ldy	#$15
+	lda	(R5),y	; is it sequential type?
+	beq	12$
+	jsr	i_CNCLBox	; no, so exit
+	.word	t2BadFile
+	jmp	HappyEnd
+12$:	mvw	File,A2
+	ldb	A3L,#0
+	jsr	OpenSF	; and open the file
+	cpx	#0
+	beq	15$
+16$:	jmp	DiskError
+15$:	jsr	ChkBEPType	; now check the dest drive
+	beq	13$	; if the dont match
+	cpx	#0
+	bne	16$
+	jmp	HappyEnd
+13$:	ldw	A2,#t2Ready
+	jsr	DoNxtD	; confirm the whole process now
+	cbi	sysDBData,#$03
+	beq	14$		; ready to go!
+	jmp	HappyEnd
+14$:	jmp	DoUnBEP
+t2Done:	.byte	$18,"Operation Complete",27,0
+t2NoFile:	.byte	$18,"Select a file to unpack.",27,0
+t2BadFile:	.byte	$18,"File is not a .BEP image!",27,0
+t2Ready:	.byte	$18,"Ready to unpack .BEP image?",27,0
+
+ChkBEPType:	lda	DstDrv	; get actual dest disk blocks
+	jsr	SetDevice
+	jsr	OpenDisk
+	cpx	#0
+	beq	10$	; got open disk
+	rts
+10$:	jsr	CMDSet	; now get actual dest disk blocks
+	sta	Temp	; and store them in temp
+	lda	DstDrv
+	jsr	DriveST
+	sta	Temp+2	; actual drive type
+	jsr	GetSByte	; and now get first file byte
+	cmp	#36
+	bne	15$
+	cbi	Temp+2,#2
+	ble	99$
+	ldw	A2,#t2Not41
+	jmp	ChkBEPBad
+15$:	cmp	#71
+	bne	20$
+	cbi	Temp+2,#2
+	beq	99$
+	ldw	A2,#t2Not71
+	jmp	ChkBEPBad
+20$:	cmp	#81
+	bne	25$
+	cbi	Temp+2,#3
+	bne	22$
+99$:	ldx	#0
+	rts
+22$:	ldw	A2,#t2Not81
+	jmp	ChkBEPBad
+25$:	cmp	#'C'
+	beq	30$
+	ldw	A2,#t2NotANY
+	jmp	ChkBEPBad
+30$:	cbi	Temp+2,#4
+	bge	35$
+	ldw	A2,#t2NotCMD
+	jmp	ChkBEPBad
+35$:	jsr	GetSByte	; and now get second file byte
+	cmp	Temp
+	beq	99$
+	jsr	i_YNBox	; no, so ask them nicely
+	.word	t2NotBlks
+	ldx	#0
+	cbi	sysDBData,#$03
+	rts
+
+ChkBEPBad:	jsr	CNCLBox
+98$:	ldx	#0
+	cpx	#$ff
+	rts
+t2Not41:	.byte	$18,"Dest. Drive must be a 1541/1571.",27,0
+t2Not71:	.byte	$18,"Dest. Drive must be a 1571",27,0
+t2Not81:	.byte	$18,"Dest. Drive must be a 1581",27,0
+t2NotCMD:	.byte	$18,"Incorrect dest drive type.",27,0
+t2NotANY:	.byte	$18,"File is not in BEP format.",27,0
+t2NotBlks:	.byte	$18,"Diff. partition sizes. Continue?",27,0
+
+DoUnBEP:	lda	#0	; check THIS out? eh?
+	sta	Oflow	; init overflow byte
+	sta	Tndx	; init LZW table index
+	sta	LZW1st	; init 1st char flag?
+	sta	ZUnBuf	; init output buf #1 index
+	sta	SECTOR
+	sta	LastError
+	ldb	TRACK,#1
+	ldb	ZIbit,#8	; init bits to push
+	ldw	ZObyte,#$6000	; init output pointer?
+10$:	jsr	Read2Buf	; fill LZW buffer w/ data
+	beq	11$
+	cpx	#11	; EOF ok
+	beq	11$
+	jmp	DiskError
+11$:	jsr	UnLZW	; LZW -> track buffer
+	bne	12$	; need more input, not op
+	lda	LastError
+	beq	10$
+12$:	mvw	TRACK,TNSTRACK
+	jsr	TnSBar
+	mvw	ZObyte,A3
+	ldw	ZObyte,#$6000
+	ldw	A2,#$6000
+	dew	A3
+	jsr	WriteSecs
+	cpx	#0
+	bne	13$
+	lda	LastError
+	beq	11$
+	lda	Oflow
+	beq	11$
+	bne	14$
+13$:	cpx	#$28
+	bge	14$
+	jmp	DiskError
+14$:	jsr	Imprint
+	jmp	Co2Unpack	; happy exit
+
+Read2Buf:	ldw	ZIbyte,#ZIbuf	; init input pointer
+	lda	Oflow	; skip overflow byte
+	beq	10$
+	ldb	Oflow,#0	; clear overflow again
+	mvw	ZIlimit,A0
+	ldy	#0
+	lda	(A0),y	; move last byte as 1st
+	sta	ZIbuf
+	ldw	A0,#ZIbuf+1	; point ahead of 1st B
+	ldw	ZIlimit,#ZIbuf
+	bra	11$
+10$:	ldw	A0,#ZIbuf	; load work pointers
+	ldw	ZIlimit,#ZIbuf-1
+11$:	inw	ZIlimit
+	jsr	GetSByte
+	stx	LastError
+	ldy	#0
+	sta	(A0),y
+	cpx	#0	; EOF or other error
+	beq	13$
+	rts
+13$:	inw	A0	; increment & move on
+	cwi	A0,#ZIflow	; filled input buffer?
+	blt	11$
+	ldx	#0	; happy exit	
+14$:	rts
+
+UnLZW:	jsr	ZdumpZ	; finish any old output
+	bne	11$
+10$:	ldx	#1	; output buf full, exit!
+	rts		
+11$:	lda	Oflow	; out of input flag set?
+	beq	17$
+	ldx	#0	; out of input exit
+	rts
+17$:	jsr	LZZgc	; get a character
+	jsr	ZfillZ	; put data on ZUnBuf
+	lda	LZW1st
+	bne	12$	; handle empty table
+	inc	LZW1st
+	ldb	Tndx,#0	; reason not to do ZfillZ
+	bra	14$
+12$:	ldx	Tndx	; get table index
+	inx
+	cpx	#$fe	; is it now full?
+	bne	13$	; yes, so add nothing
+	ldb	LZW1st,#0	; clear 1st char again
+	bra	14$
+13$:	stx	Tndx	; save, adjust table index
+	dex
+	lda	W
+	sta	T0a,x
+	lda	W+1	; add table entry
+	sta	T0b,x
+	lda	Zfst
+	sta	T0c,x
+14$:	mvw	C,W	; make last entry
+	jmp	UnLZW	; continue (chks above!)
+
+
+LZZasl:	.byte	$0e	; asl
+ZIbyte:	.word	$ffff	; input buffer location
+	php
+	dec	ZIbit	; remaining bits/this byte
+	bne	10$
+	inw	ZIbyte	; pull bits from next byte
+	ldb	ZIbit,#8	
+	cpw	ZIbyte,ZIlimit	; last effective byte
+	bne	10$
+	ldb	Oflow,#1	; set overflow flag
+10$:	plp
+	rts
+
+LZZgc:	ldb	C,#0	; shift off coded char
+	jsr	LZZasl
+	rol	C	; get table flag bit
+	ldy	#8
+10$:	jsr	LZZasl	; now get code/char
+	rol	C+1
+	ylp	10$
+	rts
+
+
+
+LZZputC:	.byte	$8d	; sta
+ZObyte:	.word	$ffff	; yup
+	inw	ZObyte
+	cwi	ZObyte,#$7800	; Znuff iz written
+	rts
+
+CMDSet:	lda	$8908	; will be last availbale track
+	clc
+	adc	#1	; and add one
+10$:	rts
+
+ZdumpZ:	ldy	ZUnBuf	; restore index
+	bne	10$	; empty, so exit
+	ldx	#1	; NE = OK, EQ = FULL
+	rts
+10$:	lda	ZUnBuf,y	; get letter from end
+	jsr	LZZputC	; output letter
+	php		; save fullness flags
+	dey
+	beq	11$
+	plp		; no more to do, exit!
+	bne 10$	; continue if possible
+	php
+11$:	sty	ZUnBuf	; save new index
+	plp
+	rts
+
+
+
+ZfillZ:	ldy	#0	; clear index to ZUnBuf
+	lda	C	; is thing a code?
+	bne	10$
+	lda	C+1	; no, so push char
+	bra	12$
+10$:	ldx	C+1	; check for kwkwk case
+	cpx	Tndx
+	bne	13$
+	lda	W+1		; yes, so fetch last thing
+	ldx	W	; was last thing a code?
+	bne	11$
+	iny		; no, so push char 2nd
+	sta	ZUnBuf+2
+	bra	12$
+11$:	tax		; set up the code
+	iny		; protect 1st (last) place
+	jsr	Zfill2	; decode the rest
+	dey		; no need to do this now
+12$:	iny		; make room for 1st char
+	sty	ZUnBuf
+	sta	ZUnBuf+1	; no, a letter, so exit
+	sta	Zfst
+	rts
+13$:
+Zfill2:	lda	T0c,x	; pull letter of code
+	iny
+	sta	ZUnBuf,y
+	lda	T0a,x	; is this code a code?
+	bne	10$
+	lda	T0b,x	; no, so save and exit
+	iny
+	sty	ZUnBuf	; save first char, exit
+	sta	ZUnBuf,y
+	sta	Zfst
+	rts
+10$:	lda	T0b,x	; yes, so fetch next...
+	tax
+	jmp	Zfill2
+
+;****************************************************
+Go2Pack:	lda	SrcDrv
+	jsr	SecIOinit
+	cpx	#0
+	beq	10$
+	jmp	DiskError
+10$:	ldw	A4,#FileName
+	lda	#12
+	jsr	GetFilename
+	bne	11$
+99$	rts
+11$:	lda	FileName
+	beq	99$
+12$:	jsr	ChkOkPack
+	bne	99$
+	jsr	FixFNam
+	lda	DstDrv
+	jsr	SetDevice
+	jsr	OpenDisk
+	ldw	A2,#FileName
+	ldb	A3L,#$02
+	jsr	CreatSF
+	cpx	#0
+	beq	13$
+	jmp	DiskError
+13$:	jmp	DoPakBEP
+
+
+
+; ** check to see if the source drive can be packed
+ChkOkPack:	lda	SrcDrv
+	jsr	DriveST
+	sta	DrvType
+	cmp	#1	; 1541 drive
+	beq	10$
+	cmp	#2	; 1571 drive
+	bne	16$
+	lda	SrcDrv
+	jsr	SetDevice
+	ldw	R4,#$6000
+	ldb	R1L,#40
+	ldb	R1H,#0
+	jsr	GetBlock
+	cpx	#0
+	beq	11$
+	ldb	DrvType,#1
+	bra	10$
+16$:	cmp	#3	; 1581 drive
+	beq	12$
+	ldw	A4,#660	; "cmd" drive
+	jsr	CMDSet
+	sta	DrvMax
+	ldb	DrvType,#'C'
+	bra	13$
+10$:	ldw	A4,#500	; .D64
+	ldb	DrvType,#36
+	bra	13$
+11$:	ldw	A4,#1000	; .D71
+	ldb	DrvType,#71
+	bra	13$
+12$:	ldw	A4,#2500	; .D81
+	ldb	DrvType,#81
+13$:	lda	DstDrv
+	jsr	SetDevice
+	jsr	GetDirHead
+	ldw	R5,#$8200
+	jsr	CalcBlksFree
+	cpw	R4,A4
+	blt	15$	
+	ldx	#0
+99$:	rts
+15$:	jsr	i_CNCLBox
+	.word	t2NoBlks
+	ldx	#1
+	rts	
+t2NoBlks:	.byte	$18,"Not enough space on dest.",27,0
+
+FixFNam:	ldw	A0,#FileName
+10$:	ldy	#0
+	lda	(A0),y
+	beq	16$
+	cmp	#'.'
+	bne	15$
+	inw	A0
+	lda	(A0),y
+	beq	16$
+	cmp	#'B'
+	beq	11$
+	cmp	#'b'
+	bne	15$
+11$:	rts
+15$:	inw	A0
+	bra	10$
+	rts
+16$:	ldw	A4,#t2fnExt	; needs extension
+17$:	lda	(A4),y	; copy extension
+	sta	(A0),y
+	beq	11$
+	iny
+	bne	17$
+	rts
+t2fnExt:	.byte	".BEP",0
+
+DoPakBEP:	ldb	TRACK,#1
+	ldb	SECTOR,#0
+	mvw	TRACK,TNSTRACK
+	jsr	TnSBar
+	lda	#0	; this is cool
+	sta	Oflow	; initialize overflow flag	
+	sta	Tndx	; initialize table index
+	sta	LZW1st	; first LZW byte flag
+	sta	T0chk	; init table speed-checker
+	ldb	WObit,#8	; set up output bit ptr
+	ldw	WObyte,#WObuf	; set out output buffer ptr
+	mvw	WObyte,A2	; for temporary writing
+	ldy	#0
+	lda	DrvType	; expected tracks
+	sta	(A2),y	; usually drive type
+	inw	WObyte
+	cbi	DrvType,#'C'
+	bne	16$
+	lda	DrvMax
+	iny
+	sta	(A2),y
+	inw	WObyte
+16$:	jsr	BPkTracks	; pack these tracks
+	beq	21$
+20$:	jmp	DiskError
+21$:	jsr	LZWpw	; push final W
+22$:	cbi	WObit,#8
+	beq	23$	; now fill final byte
+	clc
+	jsr	LZWrol	; roll zeroes on board
+	bra	22$
+23$:	jsr	BEPBufW	; dump rest of buffer
+	bne	20$
+	ldb	A2L,#130
+	jsr	ClosSF
+	jsr	Imprint
+	jsr	i_OKBox
+	.word	t2Done
+	jmp	HappyEnd
+
+
+BPkTracks:	
+10$:	ldw	A2,#$6000
+	ldw	A3,#$77ff
+	jsr	ReadSecs
+	stx	LastError
+	ldw	WIbyte,#$5fff
+	mvw	A2,WIlimit
+	mvw	TRACK,TNSTRACK
+	jsr	TnSBar	; NOW BEGIN WRITE PROCESS
+12$:	jsr	LZW	; pack/load mid-buffer
+	beq	13$	; buffer full? no=dump
+	jsr	BEPBufW	; dump the buffer
+	bne	15$	; destination error
+	beq	12$	; finish LZW work
+13$:	ldx	LastError
+	beq	10$
+	cpx	#2
+	beq	14$
+	cpx	#$ff
+	bne	15$
+14$:	ldx	#0
+15$:	rts
+
+LZW:	lda	LZW1st	; handle 1st char case
+	bne	10$
+	inc	LZW1st	; first byte is special
+	ldb	W,#0
+	ldw	WIbyte,#$6000	; push out 1st byte
+	mvb	$6000,W+1		
+10$:	lda	Oflow	; is output buffer full?
+	beq	11$
+	lda	#1	; full buffer exit
+	rts		
+11$:	inw	WIbyte
+	cpw	WIbyte,WIlimit	; finished the T&S's?
+	blt	12$
+	lda	#0	; need more sectors exit
+	rts
+12$:	jsr	LZWgetC	; get a char
+	ldx	T0chk
+14$:	cpx	Tndx	; checked whole table
+	beq	17$
+	lda	W
+	cmp	T0a,x	; check W
+	bne	16$
+	lda	W+1
+	cmp	T0b,x	; check W+1
+	bne	16$
+	lda	C
+	cmp	T0c,x	; check char C
+	bne	16$
+	stx	W+1	; found! set up new W
+	ldb	W,#128
+	inx
+	stx	T0chk
+	bra	11$	; continue looping
+16$:	inx		; check rest of table
+	bne	14$
+17$:	jsr	LZWpw	; put W on out buf
+	ldx	Tndx
+	inx
+	cpx	#$ff	; is table full?
+	bne	18$
+	ldb	Tndx,#0
+	bra	19$
+18$:	stx	Tndx	; now add to table
+	dex
+	lda	W
+	sta	T0a,x	; add W+C to table
+	lda	W+1
+	sta	T0b,x
+	lda	C
+	sta	T0c,x
+19$:	mvb	C,W+1	; make C new W
+	ldb	W,#0
+	sta	T0chk
+	jmp	LZW	; do it all again!
+
+BEPBufW:	mvw	WObyte,A3	; up to, not over WOflow
+	dew	A3	; test **********
+	ldw	A2,#WObuf	; start from top
+	ldw	WObyte,#WObuf
+10$:	lda	DstDrv
+	jsr	SetDevice
+	jsr	PutSMem
+	cpx	#0	; any dest error at all?
+	bne	12$
+	lda	Oflow
+	beq	11$	; was buffer full before?
+	mvb	WOflow,WObuf	; yes, so reset buffer
+	ldb	Oflow,#0
+11$:	ldx	#0
+12$:	rts
+
+LZWgetC:	.byte	$ad	; lda
+WIbyte:	.word	$ffff	; T&S buffer location
+	sta	C	; get a character 
+	rts
+
+LZWrol:	.byte	$2e	; rol
+WObyte:	.word	$ffff	; output buffer location
+	dec	WObit
+	bne	10$
+	avw	#1,WObyte	; set up next byte
+	ldb	WObit,#8
+	cwi	WObyte,#WOflow	; fill the buffer?
+	bne	10$
+	ldb	Oflow,#1	; yes, so set flag
+10$:	rts
+
+LZWpw:	lda	W	; add to table routine
+	asl	a
+	jsr	LZWrol	; add table flag	
+	lda	W+1
+	sta	WOflow+9
+	ldy	#8
+10$:	asl	WOflow+9	; now add code/char
+	jsr	LZWrol
+	ylp	10$
+	rts
+
+.ramsect
+File:	.block	2
+DrvType:	.block	1
+DrvMax:	.block	1
+LastError:	.block	1
+ProgOffset:	.block	1
+LastTnS:	.block	2
+LastMem:	.block	2
+
+
+W:	.block	2	; official LZW "W"
+C:	.block	2	; character to check
+Zfst:	.block	2	; first letter of last output
+Tndx:	.block	1	; pointer to last used table entry
+T0a:	.block	256	; 0 = normal char, 1 = tabled
+T0b:	.block	256	; table index
+T0c:	.block	256	; table characters
+T0chk:	.block	1	; to keep from re-checking table
+WIlimit:	.block	2	; end of T&S buffer for reading
+ZIlimit:	.block	2	; end of read buffer
+WObit:	.block	1	; bit pos in out buf 4 LZW out
+ZIbit:	.block	1	; bit pos in input buf 4 LZW in
+Oflow:	.block	1	; overflow flag for WObuf, ZIbuf
+LZW1st:	.block	1	; to handle special 1st char case
+
+ZIbuf:
+WObuf:	.block	10*256
+ZIflow:
+WOflow:	.block	10	; overflow byte(s) for WObuf
+Temp:	.block	18	; whatever its needed for
+ZUnBuf:	.block	256	; unpacking buffer for an unLZW in
+TheEnd:	.block 1	; serves no purpose
+</pre></body></html>

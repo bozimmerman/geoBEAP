@@ -1,0 +1,321 @@
+<!DOCTYPE html><html><head><title>Untitled</title></head><body><pre>
+;*****************************
+;*
+;*         geoBEAP II
+;* "Bo's Excellent Archive Program"
+;*
+;*      (C) 2001 Bo Zimmerman
+;*
+;*  Dedicated to Naomi Zimmerman
+;*****************************
+.if 	Pass1
+.noeqin
+.noglbl
+.include	GEOSequates
+.eqin
+.glbl
+.endif
+
+.psect
+	jmp	MakeScrn	; VPRGbase + 0
+	jmp	AbtBox	; VPRGbase + 3
+
+MakeScrn:	lda	Flag4080
+	beq	10$
+	ldw	R0,#fBEAPSCRN
+	jsr	InitRam
+	jsr	FixWords
+	jsr	FixCons
+10$:	jsr	MoveCons
+	ldw	R0,#BEAPSCRN
+	jsr	GraphicsString	; draw boxes, etc..
+	jsr	DoWords	; write headings
+	ldw	R0,#THEICONS
+	jsr	DoIcons	; set up active icons
+	rts
+
+;********************
+;* DoWords
+;* MakeScreen
+;********************
+
+DoWords:	; ** display the screen text
+	jsr	i_PutString
+DW1:	.byte	15,0,47,$18,"Disk:",27,0
+	jsr	i_PutString
+DW2:	.byte	205,0,47,$18,"Disk:",27,0
+	jsr	i_PutString
+DW3:	.byte	143,0,67,27,"Pack",0
+	jsr	i_PutString
+DW4:	.byte	143,0,87,27,"Unpack",0
+	jsr	i_PutString
+DW5:	.byte	130,0,55,$18,"Mode",27,0
+	jsr	i_PutString
+DW6:	.byte	130,0,105,$18,"Format",27,0
+	jsr	i_PutString
+DW7:	.byte	45,0,32,$18,"Source",27,0
+	jsr	i_PutString
+DW8:	.byte	228,0,32,$18,"Destination",27,0
+	rts
+
+FixWords:	mvb	Flag4080,DW1+1
+	mvb	Flag4080,DW2+1
+	mvb	Flag4080,DW3+1
+	mvb	Flag4080,DW4+1
+	mvb	Flag4080,DW5+1
+	mvb	Flag4080,DW6+1
+	mvb	Flag4080,DW7+1
+	mvb	Flag4080,DW8+1
+	rts
+
+BEAPSCRN:	.byte	NEWPATTERN,1	; 0,1
+	.byte	MOVEPENTO,0,0,0	; 2,3,4,5
+	.byte	RECTANGLETO,63,1,199	; 6,7,8,9
+	.byte	NEWPATTERN,0	; lined header, 10,11
+	.byte	MOVEPENTO,0,0,0	; 12,13,14,15
+	.byte	RECTANGLETO,63,1,199	; 16,17,18,19
+	.byte	NEWPATTERN,1	; 20,21
+	.byte	MOVEPENTO,0,0,0	; 22,23,24,25
+	.byte	FRAME_RECTO,63,1,14	; 26,27,28,29
+	.byte	MOVEPENTO,0,0,2	; 30,31,32,33
+	.byte	FRAME_RECTO,63,1,12	; more lined header, 34,35,36,37
+	.byte	MOVEPENTO,0,0,4	; 38,39,40,41
+	.byte	FRAME_RECTO,63,1,10	; 42,43,44,45
+	.byte	MOVEPENTO,0,0,6	; 46,47,48,49
+	.byte	FRAME_RECTO,63,1,8	; 50,51,52,53
+	.byte	MOVEPENTO,130,0,60	; radial buttons for,54,55,56,57
+	.byte	FRAME_RECTO,140,0,70	;   "conversion",58,59,60,61
+	.byte	MOVEPENTO,130,0,80	; 62,63,64,65
+	.byte	FRAME_RECTO,140,0,90	; 66,67,68,69
+	.byte	MOVEPENTO,121,0,53	; source shadow,70,71,72,73
+	.byte	RECTANGLETO,123,0,163	; 74,75,76,77
+	.byte	MOVEPENTO,11,0,162	; 78,79,80,81
+	.byte	RECTANGLETO,123,0,163	; 82,83,84,85
+	.byte	MOVEPENTO,57,1,53	; dest shadow,86,87,88,89
+	.byte	RECTANGLETO,59,1,163	; 90,91,92,93
+	.byte	MOVEPENTO,203,0,162	; 94,95,96,97
+	.byte	RECTANGLETO,59,1,163	; 98,99,100,101
+	.byte	MOVEPENTO,8,0,50	; source & dest boxes,102,103,104,105
+	.byte	FRAME_RECTO,120,0,161	; 106,107,108,109
+	.byte	MOVEPENTO,200,0,50	; 110,111,112,113
+	.byte	FRAME_RECTO,56,1,161	; 114,115,116,117
+	.byte	ESC_PUTSTRING,110,0,10	; title,118,119,120,121
+	.byte	$18,$1a,"geoBEAP 2.1a",27,0
+
+fBEAPSCRN:	.byte	[(BEAPSCRN+8),](BEAPSCRN+8),1,$81
+	.byte	[(BEAPSCRN+18),](BEAPSCRN+18),1,$81
+	.byte	[(BEAPSCRN+28),](BEAPSCRN+28),1,$81
+	.byte	[(BEAPSCRN+36),](BEAPSCRN+36),1,$81
+	.byte	[(BEAPSCRN+44),](BEAPSCRN+44),1,$81
+	.byte	[(BEAPSCRN+52),](BEAPSCRN+52),1,$81
+	.byte	[(BEAPSCRN+56),](BEAPSCRN+56),1,$80
+	.byte	[(BEAPSCRN+60),](BEAPSCRN+60),1,$80
+	.byte	[(BEAPSCRN+64),](BEAPSCRN+64),1,$80
+	.byte	[(BEAPSCRN+68),](BEAPSCRN+68),1,$80
+	.byte	[(BEAPSCRN+72),](BEAPSCRN+72),1,$80
+	.byte	[(BEAPSCRN+76),](BEAPSCRN+76),1,$80
+	.byte	[(BEAPSCRN+80),](BEAPSCRN+80),1,$80
+	.byte	[(BEAPSCRN+84),](BEAPSCRN+84),1,$80
+	.byte	[(BEAPSCRN+88),](BEAPSCRN+88),1,$81
+	.byte	[(BEAPSCRN+92),](BEAPSCRN+92),1,$81
+	.byte	[(BEAPSCRN+96),](BEAPSCRN+96),1,$80
+	.byte	[(BEAPSCRN+100),](BEAPSCRN+100),1,$81
+	.byte	[(BEAPSCRN+104),](BEAPSCRN+104),1,$80
+	.byte	[(BEAPSCRN+108),](BEAPSCRN+108),1,$80
+	.byte	[(BEAPSCRN+112),](BEAPSCRN+112),1,$80
+	.byte	[(BEAPSCRN+116),](BEAPSCRN+116),1,$81
+	.byte	[(BEAPSCRN+119),](BEAPSCRN+119),2,130,$80
+	.byte	0,0,0,0
+
+;*******************
+;*  ClickBoxes
+;*******************
+
+ClickBoxes:		; ** initialize the screen click boxes
+	.byte	9	; # entries
+	.word	0	; mouse x pos
+	.byte	0	; mouse y pos
+	.word	LAUcon
+CB1:	.byte	17	; click box x pos
+	.byte	175	; click box 		y pos
+	.byte	LAUw,LAUh	; width & height
+	.word	Launch
+	.word	EXIcon	; EXIT icon
+CB2:	.byte	37
+	.byte	0
+	.byte	EXIw,EXIh
+	.word	Exit
+	.word	DRVcon	; left DRIVE icon
+CB3:	.byte	2
+	.byte	165
+	.byte	DRVw,DRVh
+	.word	DoDriveS
+	.word	DRVcon	; right DRIVE icon
+CB4:	.byte	26
+	.byte	165
+	.byte	DRVw,DRVh
+	.word	DoDriveD
+	.word	DSKcon	; left DISK icon
+CB5:	.byte	9
+	.byte	165
+	.byte	DSKw,DSKh
+	.word	DoDiskS
+	.word	DSKcon	; right DISK icon
+CB6:	.byte	33
+	.byte	165
+	.byte	DSKw,DSKh
+	.word	DoDiskD
+	.word	AROcon	; source arrows
+CB7:	.byte	1
+	.byte	50
+	.byte	AROw,AROh
+	.word	ClikSAro
+	.word	AROcon	; dest arrows
+CB8:	.byte	38
+	.byte	50
+	.byte	AROw,AROh
+	.word	ClikDAro
+	.word	FMTcon	; format combobox
+CB9:	.byte	16
+	.byte	110
+	.byte	FMTw,FMTh
+	.word	NewFormat
+EndCon:	.byte	0
+
+
+
+FixCons:	ldw	R0,#CB1
+	jsr	FixOne
+	ldw	R0,#CB2
+	jsr	FixOne
+	ldw	R0,#CB3
+	jsr	FixOne
+	ldw	R0,#CB4
+	jsr	FixOne
+	ldw	R0,#CB5
+	jsr	FixOne
+	ldw	R0,#CB6
+	jsr	FixOne
+	ldw	R0,#CB7
+	jsr	FixOne
+	ldw	R0,#CB8
+	jsr	FixOne
+	ldw	R0,#CB9
+	jsr	FixOne
+	;ldw	R0,#Dlg7Fmt2+1
+	;jsr	FixHalf
+	;ldw	R0,#DNDlgT2+1
+	;jsr	FixHalf
+	ldw	R0,#Fmt7But2
+	jsr	FixHalf
+	ldw	R0,#FmtBut2
+	jsr	FixHalf
+	rts
+
+MoveCons:	ldw	R0,#ClickBoxes
+	ldw	R1,#THEICONS
+	ldy	#$00
+10$:	lda	(R0),y
+	sta	(R1),y
+	cwi	R0,#EndCon
+	inw	R0
+	inw	R1
+	blt	10$
+	rts
+
+FixOne:	ldy	#0
+	lda	(R0),y
+	ora	Flag4080
+	sta	(R0),y
+	ldy	#2
+	lda	(R0),y
+	ora	Flag4080
+	sta	(R0),y
+	rts
+FixHalf:	ldy	#0
+	lda	(R0),y
+	ora	Flag4080
+	sta	(R0),y
+	rts
+
+EXIcon:
+
+<img src="00066.png" />	EXIw	=picW
+	EXIh	=picH
+
+LAUcon:
+
+<img src="00067.png" />	LAUw	=picW
+	LAUh	=picH
+
+DSKcon:
+
+<img src="00068.png" />	DSKw	=picW
+	DSKh	=picH
+
+DRVcon:
+
+<img src="00069.png" />	DRVw	=picW
+	DRVh	=picH
+
+AROcon:
+
+<img src="00070.png" />	AROw	=picW
+	AROh	=picH
+
+FMTcon:
+<img src="00071.png" />	FMTw	=picW
+	FMTh	=picH
+
+AbtBox:	jsr	ClrScrn
+AbtBox2:	cwi	rightMargin,#320
+	ble	10$
+	ldb	AbtDat+4,#$80
+	ldb	AbtDat+6,#$81
+10$:	lda	#[(AbtDat)
+	sta	$02	; set lsb for dialog data
+	lda	#](AbtDat)
+	sta	$03	; set msb for dialog data
+	jmp	$c256	; call DoAbtBox and leave!
+AbtDat:	.byte	$01	; size flag, and shadow pattern
+	.byte	$20,$b5,$40,$00,$1e,$01	; dialog box dimensions
+	.byte	$0b,$06,$0b	; static text
+	.word AbtT00
+	.byte	$0b,$06,$17	; static text
+	.word AbtT01
+	.byte	$0b,$06,$21	; static text
+	.word AbtT02
+	.byte	$0b,$07,$2a	; static text
+	.word AbtT03
+	.byte	$0b,$07,$35	; static text
+	.word AbtT04
+	.byte	$0b,$07,$47	; static text
+	.word AbtT05
+	.byte	$0b,$07,$52	; static text
+	.word AbtT06
+	.byte	$0b,$07,$5d	; static text
+	.word AbtT07
+	.byte	$0b,$08,$6d	; static text
+	.word AbtT08
+	.byte	$0b,$08,$77	; static text
+	.word AbtT09
+	.byte	$0b,$08,$81	; static text
+	.word AbtT0a
+	.byte	$01,$12,$7e	; OK button
+	.byte	$00	; end of table
+AbtT00:	.byte	$1a,$18,"       geoBEAP v2.1a",27,0
+AbtT01:	.byte	"This program is SHAREWARE.  Distribute it",27,0
+AbtT02:	.byte	"as you like.  If you enjoy it, send your",27,0
+AbtT03:	.byte	"registration fee of $25 USD to the",27,0
+AbtT04:	.byte	"following address:",27,0
+AbtT05:	.byte	"Bo Zimmerman",27,0
+AbtT06:	.byte	"1907 Cameo Dr.",27,0
+AbtT07:	.byte	"Round Rock, TX 78664",27,0
+AbtT08:	.byte	"  ",27,0
+AbtT09:	.byte	"Email: bo@zimmers.net",27,0
+AbtT0a:	.byte	" ",27,0
+
+.ramsect
+
+
+</pre></body></html>

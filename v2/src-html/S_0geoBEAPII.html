@@ -1,0 +1,816 @@
+<!DOCTYPE html><html><head><title>Untitled</title></head><body><pre>
+;*****************************
+;*
+;*         geoBEAP II
+;* "Bo's Excellent Archive Program"
+;*
+;*      (C) 2001,2009 Bo Zimmerman
+;*
+;*  Dedicated to Naomi Zimmerman
+;*****************************
+
+.if	Pass1
+	.include	GEOSequates
+DrawScrn=$10
+AboutBox=$13
+.endif
+.psect
+
+
+ProgStart:
+	jsr	i_InitVPrg	; init the VLIR vectors
+	.word PermName
+	cpx	#0	; check for errors
+	bne	ByeBye	; if any, then exit
+	ldw	ADW4080,#0
+	cwi	rightMargin,#319	; are we in 80 cols?
+	ble	10$
+	ldw	Flag4080,#$80	; set 40/80 flag
+10$:
+ReStart:	ldb	dispBufferOn,#(ST_WR_FORE|ST_WR_BACK)
+	jsr	UseSystemFont
+	ldb	A2L,#DrawScrn
+	jsr	vjmp	; now draw the main screen
+	lda	#0
+	jsr	SelFmt	; initialiZe checkboxes to unpack
+	ldb	PackUnpack,#1
+	jsr	UnpackDims	; by setting and inverting
+	jsr	InvertRectangle
+	ldw	OtherPressVec,#CMclick  ; now set click handler
+	jsr	InitFiles
+	mvb	curDrive,BootDrv
+	rts		; return to geos kernal
+ByeBye:	jmp	EnterDeskTop
+PermName:	.byte	"geoBEAP     2.1a",0
+
+vjmp:	mvb	A2L,TempCurr
+	jsr	VJump
+	jsr	Imprint
+	jsr	i_OKBox
+	.word	ProperDisk
+	ldb	VPRGcurr,#$ff
+	mvb	TempCurr,A2L
+	jmp	vjmp
+ProperDisk:	.byte	$18,"Please re-insert geoBEAP disk.",27,0
+
+Imprint:	ldb	R2L,#$00
+	mvb	windowBot,R2H
+	ldw	R3,#$00
+	mvw	rightMargin,R4
+	jmp	ImprintRectangle
+
+InitFiles:	mvb	curDevice,SrcDrv
+	mvb	curDevice,DstDrv
+	jsr	NewSrc
+	jsr	ShowSrc
+	jsr	NewDst
+	jsr	ShowDst
+	rts
+
+GetSPtr:	ldw	A0,#SrcList
+	ldx	#$ff
+	cpy	#0
+	bne	10$
+	rts
+10$:	inx		; if first char is 0, we are DONE
+	lda	SrcList,x
+	beq	12$
+11$:	inx
+	lda	SrcList,x
+	bne	11$
+	dey
+	bne	10$
+	inx
+12$:	stx	Temp
+	ldb	Temp+1,#0
+	adw	Temp,A0
+	rts	
+
+NewSrc:	ldw	R0,#EndSrc-SrcList
+	ldw	R1,#SrcList	; initialize list areas
+	jsr	ClearRam
+ReadSrc:	lda	SrcDrv
+	jsr	SetDevice	; set proper disk
+	jsr	OpenDisk
+	ldw	A3,#SrcNam
+	ldw	A4,#21+19
+	jsr	FixNam
+	ldw	A2,#SrcList
+	ldw	A3,#SrcPage-1
+	mvb	SrcPage,A4L
+	ldb	A4H,#13
+	jsr	File2List
+	pha
+	cpx	#0
+	beq	11$
+	jsr	FError
+	ldb	SrcList,#0
+11$:	pla
+	rts
+
+SrcBoxDims:
+	ldb	R2L,#53	; start source
+	ldb	R2H,#158
+	ldw	R3,#21
+	ldw	R4,#118
+	adw	ADW4080,R3
+	adw	ADW4080,R4
+	rts
+;* send A3 with name pointing area, send A4 with X pos
+FixNam:	lda	#0	; clear it first!
+	jsr	SetPattern
+	mvw	A4,R3
+	adw	ADW4080,R3
+	mvw	R3,R4
+	avw	#88,R4
+	ldb	R2L,53-15
+	ldb	R2H,53-4
+	jsr	Rectangle
+	ldx	#A2L
+	jsr	GetPtrCurDkNm
+	jsr	CopyFnam	; copy disk name
+	mvw	A3,R0
+	ldb	R1H,#53-6
+	mvw	A4,R11
+	adw	ADW4080,R11
+	jsr	PutString	; display disk name
+	rts
+
+ShowSrc:
+	jsr	SrcBoxDims
+	lda	#0
+	jsr	SetPattern
+	jsr	Rectangle
+	jsr	SrcBoxDims
+	ldw	A2,#SrcList
+	ldb	A3L,#0
+	jsr	PrntList	; start destination
+	mvb	SrcPage,Temp	; now check clicked
+	mvb	SrcPage,Temp+1
+	avb	#13,Temp+1
+10$:	ldy	Temp	; by looping
+	lda	SrcPicks,y
+	beq	11$
+	sty	A2L
+	inc	A2L		; since FileList is 1 based
+	sbb	SrcPage,A2L
+	jsr	PikList
+11$:	inc	Temp
+	beq	12$
+	cpb	Temp,Temp+1
+	ble	10$
+12$:	rts
+
+
+NewDst:	ldw	R0,#EndDst-DstList
+	ldw	R1,#DstList	; initialize list areas
+	jsr	ClearRam	
+ReadDst:	lda	DstDrv
+	jsr	SetDevice
+	jsr	OpenDisk
+	ldw	A3,#DstNam
+	ldw	A4,#205+25
+	jsr	FixNam
+	ldw	A2,#DstList
+	ldw	A3,#DstPage-1
+	mvb	DstPage,A4L
+	ldb	A4H,#13
+	jsr	File2List
+	pha
+	cpx	#0
+	beq	11$
+	jsr	FError
+	ldb	DstList,#0
+11$:	pla
+	rts
+
+
+
+ShowDst:
+	jsr	DstBoxDims
+	lda	#0
+	jsr	SetPattern
+	jsr	Rectangle
+	jsr	DstBoxDims
+	ldw	A2,#DstList
+	ldb	A3L,#0
+	jsr	PrntList
+	rts
+DstBoxDims:
+	ldb	R2L,#53
+	ldb	R2H,#158
+	ldw	R3,#205
+	ldw	R4,#303
+	adw	ADW4080,R3
+	adw	ADW4080,R4
+	rts
+
+DoDriveS:
+	lda	SrcDrv
+	jsr	SetDevice
+	jsr	FBOXswd2
+	mvb	curDrive,SrcDrv
+	jsr	NewSrc
+	jmp	ShowSrc
+
+DoDriveD:
+	lda	DstDrv
+	jsr	SetDevice
+	jsr	FBOXswd2
+	mvb	curDrive,DstDrv
+	jsr	NewDst
+	jmp	ShowDst
+
+FBOXswd2:	ldy	curDrive
+	iny
+	cpy	#12
+	blt	11$
+	ldy	#8
+11$:	tya
+	pha
+	jsr	SetDevice
+	pla
+	cmp	curDrive
+	beq	12$
+	sta	curDrive
+	bra	FBOXswd2
+12$:	jsr	OpenDisk
+	cpx	#0
+	bne	FBOXswd2
+	rts
+
+;********************
+;* DoDiskS
+;* DoDiskD
+;* DoDiskA
+;********************
+
+DoDiskS:		; ** handle disk icon under source
+	lda	SrcDrv	; set up source
+	jsr	DoDiskA
+	beq	10$
+	rts
+10$:	jsr	NewSrc
+	jsr	ShowSrc
+	cpb	SrcDrv,DstDrv
+	beq	11$
+	rts
+11$:	jsr	NewDst
+	jmp	ShowDst	
+
+DoDiskD:		; ** handle disk icon under source
+	lda	DstDrv	; set up source
+	jsr	DoDiskA
+	beq	10$
+	rts
+10$:	jsr	NewDst
+	jsr	ShowDst
+	cpb	SrcDrv,DstDrv
+	beq	11$
+	rts
+11$:	jsr	NewSrc
+	jmp	ShowSrc
+
+DoDiskA:	pha
+	jsr	SetDevice
+	pla
+	pha
+	jsr	DriveST
+	cmp	#4	; is it native?
+	blt	10$
+	cbi	$c00f,#$40	; is it wheels?
+	blt	10$
+	cbi	$904f,#$50	; is the driver ok?
+	blt	10$
+	pla
+	lda	#(5|64)
+	jsr	$9d80	; get new kernal
+	jsr	$5003	; change partition
+	jsr	$9d83	; restore kernal
+	bra	12$
+10$:	pla		; pull the drive we came with
+	cmp	BootDrv
+	bne	11$	; is it the boot drive?
+	ldw	A2,#DKtxt1
+	jsr	CNCLBox	; yes, so inform
+	ldx	#$ff	; otherwise, return error
+	rts
+11$:	jsr	DoDskN
+12$:	ldx	#0
+	rts
+
+
+
+DoDskN:	cmp	DstDrv
+	bne	10$
+	jsr	DriveST
+	cmp	#4
+	blt	11$
+10$:	ldw	A2,#DKtxt0
+	jmp	OKBox	; prompt for disk
+11$:	lda	#[(FmtDBX)
+	sta	$02	; set lsb for dialog data
+	lda	#](FmtDBX)
+	sta	$03	; set msb for dialog data
+	jsr	$c256	; call DoDlgBox and leave!	
+	cbi	sysDBData,#$14
+	bne	15$
+	lda	DstDrv
+	clc	
+	adc	#$39
+	sta	FTtxt00+23
+	ldb	DskFmtFlg,#0
+	lda	DstDrv
+	jsr	DriveST
+	cmp	#2
+	bne	13$
+	lda	#[(Dlg7Fmt)
+	sta	$02	; set lsb for dialog data
+	lda	#](Dlg7Fmt)
+	sta	$03	; set msb for dialog data
+	bra	14$
+13$:	lda	#[(DlgFmt)
+	sta	$02	; set lsb for dialog data
+	lda	#](DlgFmt)
+	sta	$03	; set msb for dialog data
+14$:	jsr	$c256	; call DoDlgBox and leave!	
+	cbi	sysDBData,#$03
+	bne	15$
+	jmp	DoFmtD
+15$:	rts
+FmtBut:	.word FMTBMP	; pointer to graphics data
+	.word $ffff
+FmtBut2:	.byte	$06,$10	; pic width and height
+	.word FmtCDG
+Fmt7But:	.word FMT7BMP	; pointer to graphics data
+	.word $ffff
+Fmt7But2:	.byte	$01,$08	; pic width and height
+	.word Fmt7CDG
+Fmt7CDG:	dec	DskFmtFlg
+	beq	10$
+	ldb	DskFmtFlg,#1
+10$:	jmp	InvertRectangle
+FmtCDG:	lda	#$14	; sysDBData code
+	sta	$851d
+	jmp	$c2bf	; RstrFrmDialogue
+FMTBMP:
+<img src="00064.png" />FMT7BMP:
+<img src="00065.png" />
+
+DoFmtD:	lda	DstDrv
+	jsr	SetDevice
+	jsr	PurgeTurbo
+	jsr	InitForIO
+	lda	DstDrv
+	jsr	DriveST
+	cmp	#2
+	bne	10$
+	lda	DskFmtFlg
+	bne	10$
+	lda	#1
+	jsr	DONED71
+10$:	lda	#1	; Logical file number
+	ldx	DstDrv
+	ldy	#15	; command channel
+	jsr	$ffba	; setlfs
+	lda	#$0a	; strlen NEWDSKD
+	ldx	#[(NEWDSKD)	; 
+	ldy	#](NEWDSKD)	
+	jsr	$ffbd	; setnam
+	jsr	$ffc0	; open
+	lda	#1
+	jsr	$ffc3	; close
+	lda	90
+	pha
+	lda	DstDrv
+	jsr	DriveST
+	cmp	#$02
+	bne	11$
+	lda	#2	; yes, will already be 2, but 2=1571
+	jsr	DONED71	
+11$:	jsr	DoneWithIO
+	jsr	EnterTurbo
+	pla
+	tax
+	rts
+NEWDSKD:	.byte	"N0:DISK,ID",0
+NEW1571D:	.byte	"U0>M0",0
+DONED71:	clc
+	adc	#$2f	; 1=1541, 2=1571
+	sta	NEW1571D+4
+	lda	#1	; Logical file number
+	ldx	DstDrv
+	ldy	#15	; command channel
+	jsr	$ffba	; setlfs
+	lda	#$05	; strlen NEWDSKD
+	ldx	#[(NEW1571D)	; 
+	ldy	#](NEW1571D)	
+	jsr	$ffbd	; setnam
+	jsr	$ffc0	; open
+	lda	#1
+	jmp	$ffc3	; close
+
+DoNxtD:	lda	#[(DNDlgT)
+	sta	$02	; set lsb for dialog data
+	lda	#](DNDlgT)
+	sta	$03	; set msb for dialog data
+	jsr	$c256	; call DoDlgBox and leave!	
+	cbi	sysDBData,#$14
+	bne	13$
+	lda	DstDrv
+	clc	
+	adc	#$39
+	sta	FTtxt00+23
+	ldb	DskFmtFlg,#0
+	lda	DstDrv
+	jsr	DriveST
+	cmp	#$02
+	bne	11$
+	lda	#[(Dlg7Fmt)
+	sta	$02	; set lsb for dialog data
+	lda	#](Dlg7Fmt)
+	sta	$03	; set msb for dialog data
+	bra	12$
+11$:	lda	#[(DlgFmt)
+	sta	$02	; set lsb for dialog data
+	lda	#](DlgFmt)
+	sta	$03	; set msb for dialog data
+12$:	jsr	$c256	; call DoDlgBox and leave!	
+	cbi	sysDBData,#$03
+	bne	13$
+	jsr	DoFmtD
+	jmp	DoNxtD
+	ldb	sysDBData,#$03
+13$:	lda	SrcDrv
+	jsr	SetDevice
+	ldx	#0
+	rts
+
+
+
+; **********
+; Dialog boxes
+; for Formatting
+; **********
+
+DNDlgT:	.byte	$81	; size flag, and shadow pattern
+	.byte	$0c,$0a,$17	; static text
+	.byte	A2
+	.byte	$03,$01,$44	; YES button
+	.byte	$04,$09,$44	; NO button
+DNDlgT2:	.byte	$12,$11,$44	; user clickbox
+	.word FmtBut
+	.byte	$00	; end of table
+
+DlgFmt:	.byte	$81	; size flag, and shadow pattern
+	.byte	$0b,$0f,$12	; static text
+	.word FTtxt00
+	.byte	$0b,$0f,$35	; static text
+	.word FTtxt02
+	.byte	$0b,$0f,$41	; static text
+	.word FTtxt03
+	.byte	$03,$10,$49	; YES button
+	.byte	$04,$02,$49	; NO button
+	.byte	$00	; end of table
+Dlg7Fmt:	.byte	$81	; size flag, and shadow pattern
+	.byte	$0b,$0f,$12	; static text
+	.word FTtxt00
+Dlg7Fmt2:	.byte	$12,$02,$1c	; user clickbox
+	.word Fmt7But
+	.byte	$0b,$1d,$22	; static text
+	.word FTtxt01
+	.byte	$0b,$0f,$35	; static text
+	.word FTtxt02
+	.byte	$0b,$0f,$41	; static text
+	.word FTtxt03
+	.byte	$03,$10,$49	; YES button
+	.byte	$04,$02,$49	; NO button
+	.byte	$00	; end of table
+FTtxt00:	.byte	$18,"Format disk in drive: A",27,0
+FTtxt01:	.byte	$18,"Format 1571 double-sided",27,0
+FTtxt02:	.byte	$18,"All data will be erased!",27,0
+FTtxt03:	.byte	$18,"Are you sure?",27,0
+DKtxt0:	.byte	$18,"Please insert new disk.",27,0
+DKtxt1:	.byte	$18,"Cannot remove geoBEAP disk.",27,0
+
+FmtDBX:	.byte	$81	; size flag, and shadow pattern
+	.byte	$0b,$13,$1a	; static text
+	.word DKtxt0
+	.byte	$01,$10,$4a	; OK button
+	.byte	$12,$02,$4a	; user clickbox
+	.word FmtBut
+	.byte	$00	; end of table
+
+
+	; ** send drive number in .a
+DriveST:	; ** return drive type in .a, total drives in .x
+	ldx	numDrives
+	tay
+	lda	driveType-8,y
+	and	#%00000111
+	rts
+
+SelFmt:	sta	FormatCode
+	tax
+	ldw	A1,#FmtTable
+	cpx	#0
+	beq	50$
+10$:	inw	A1
+20$:	inw	A1
+	ldy	#0
+	lda	(A1),y
+	bne	20$
+	inw	A1
+	dex
+	bne	10$
+50$:	ldy	#0
+	lda	(A1),y
+	sta	ChainCode
+	inw	A1
+	lda	(A1),y
+	sta	MethCode
+	inw	A1
+	mvw	A1,R0
+	ldb	R1H,#120
+	ldw	R11,#130
+	adw	ADW4080,R11
+	jsr	PutString
+	jmp	UnSetSrc
+
+NewFormat:
+	ldx	FormatCode
+	inx
+	cpx	NUMFRMTS
+	blt	10$
+	ldx	#0
+10$:	txa
+	jmp	SelFmt
+
+NUMFRMTS:	.byte	8
+FmtTable:	.byte	$40,%00001111,	27,".D64/71/81  ",0
+	.byte	$50,%00001111,	27,".BEP image  ",0
+	.byte	$70,%11111111,	27,".CVT GEOS   ",0
+	.byte	$60,%00001111,	27,"?!zipcode+4 ",0
+	.byte	$80,%11110110,	27,".LNX LYNX  ",0
+	.byte	$90,%11110110,	27,".ARK Arkive ",0
+	.byte	$20,%00001111,	27,".RLE (emutil)",0
+	.byte	$30,%00001111,	27,".RLE ?-multi ",0
+
+
+CMclick:	lda	mouseData
+	beq	10$
+	rts
+10$:	jsr	ClickPack
+	jsr	SrcBoxDims
+	jsr	ClkList
+	cpx	#0
+	bne	11$
+	rts
+11$:	dex
+	stx	A2L
+	txa		; is it real?
+	tay
+	jsr	GetSPtr
+	ldy	#0	; see if null
+	lda	(A0),y
+	bne	12$	; if not, continue
+	rts
+12$:	mvb	A2L,Temp+10	
+	jsr	GetMeth
+	cmp	#$0f
+	beq	15$
+	cmp	#0
+	bne	13$
+	rts
+13$:	cpb	SrcDrv,DstDrv
+	bne	15$
+	jsr	UnSetSrc
+15$:	mvb	Temp+10,A2L
+	mvb	SrcPage,Temp
+	adb	A2L,Temp
+	jsr	SrcBoxDims
+	inc	A2L
+	jsr	PikList
+	ldy	Temp
+	lda	SrcPicks,y
+	beq	20$
+	lda	#0
+	sta	SrcPicks,y
+	rts
+20$:	lda	#1
+	sta	SrcPicks,y
+	rts
+
+
+ClickPack:
+	lda	PackUnpack
+	beq	20$
+	jsr	PackDims
+	jsr	IsMseInRegion
+	cmp	#$ff
+	bne	20$
+	jsr	InvertRectangle	
+	jsr	UnpackDims
+	jsr	InvertRectangle
+	ldb	PackUnpack,#0
+	jsr	UnSetSrc
+	rts
+20$:	lda	PackUnpack
+	bne	30$
+	jsr	UnpackDims
+	jsr	IsMseInRegion
+	cmp	#$ff
+	bne	30$
+	jsr	InvertRectangle
+	jsr	PackDims
+	jsr	InvertRectangle
+	inc	PackUnpack
+	jsr	UnSetSrc
+30$:	rts
+	
+PackDims:	ldb	R2L,#61
+	ldb	R2H,#69
+	jmp	PakUnkDim
+UnpackDims:
+	ldb	R2L,#81
+	ldb	R2H,#89
+	jmp	PakUnkDim
+PakUnkDim:	ldw	R3,#131	; in a pack box?
+	ldw	R4,#139
+	adw	ADW4080,R3
+	adw	ADW4080,R4
+	rts
+
+ClikDAro:	lda	mouseYPos
+	sta	Temp
+	cmp	#106
+	bge	20$
+	cbi	DstPage,#13
+	bge	10$
+	rts
+10$:	cbi	Temp,#76
+	bgt	22$	; here is the up page
+	ldb	DstPage,#0
+	jsr	ReadDst
+	jmp	ShowDst	; here the top page
+20$:	cbi	DstPage,#255-13	 ; 255 is max
+	blt	21$
+	rts
+21$:	cbi	Temp,#133
+	bge	30$	; below is the simple down arrow
+	avb	#13,DstPage
+	jsr	ReadDst
+	cmp	#0
+	bgt	23$
+22$:	svb	#13,DstPage
+	jsr	ReadDst
+23$:	jmp	ShowDst
+30$:	avb	#13,DstPage	; here is the bottom arrow
+	jsr	ReadDst
+	cmp	#0
+	bgt	20$
+	bra	22$
+
+ClikSAro:	lda	mouseYPos
+	sta	Temp
+	cmp	#106
+	bge	20$
+	cbi	SrcPage,#13
+	bge	10$
+	rts
+10$:	cbi	Temp,#76
+	bgt	22$	; here is the up page
+	ldb	SrcPage,#0
+	jsr	ReadSrc
+	jmp	ShowSrc	; here the top page
+20$:	cbi	SrcPage,#255-13	 ; 255 is max
+	blt	21$
+	rts
+21$:	cbi	Temp,#133
+	bge	30$	; below is the simple down arrow
+	avb	#13,SrcPage
+	jsr	ReadSrc
+	cmp	#0
+	bgt	23$
+22$:	svb	#13,SrcPage
+	jsr	ReadSrc
+23$:	jmp	ShowSrc
+30$:	avb	#13,SrcPage	; here is the bottom arrow
+	jsr	ReadSrc
+	cmp	#0
+	bgt	20$
+	bra	22$
+
+Exit:	jsr	i_YNBox
+	.word	YNTXT
+	cbi	sysDBData,#$03
+	beq	10$
+	rts
+10$:	ldb	A2L,#AboutBox
+	jsr	vjmp
+	jmp	EnterDeskTop
+YNTXT:	.byte	$18,"Exit to deskTop?",27,0
+
+Launch:	mvb	ChainCode,A2L
+	jmp	vjmp
+
+GetFirstFile:	ldb	SrcPage,#0
+	jsr	ReadSrc	; read first page
+GFNewPg:	ldb	ListPtr,#0
+	mvb	SrcPage,PickPtr
+GFNxtFil:	ldy	PickPtr
+	lda	SrcPicks,y	; did they pick THIS one?
+	beq	GetNxtFile	; NO, then skip
+	jmp	GFGood	; YES, so go do it
+GetNxtFile:	inc	ListPtr
+	inc	PickPtr
+	beq	12$
+	ldy	ListPtr
+	cpy	#13	; no , so are we done with page?
+	bge	10$	; no, so keep going
+	jmp	GFNxtFil
+10$:	avb	#13,SrcPage
+	jsr	ReadSrc	; read next page
+	cmp	#0
+	beq	11$	; if more filenames, continue
+	jmp	GFNewPg
+11$:	svb	#13,SrcPage
+	jsr	ReadSrc
+12$:	ldx	#$ff	; otherwise, return error
+	rts
+
+GFGood:	ldy	ListPtr
+	jsr	GetSPtr
+	ldy	#0	; see if null
+	lda	(A0),y
+	bne	15$	; if not, continue
+	jmp	GetNxtFile
+15$:	ldx	#$00
+	rts
+
+
+GetMeth:	lda	PackUnpack
+	beq	11$
+	lda	MethCode
+	and	#$0f
+	rts
+11$:	lda	MethCode
+	lsr	a
+	lsr	a
+	lsr	a
+	lsr	a
+	rts
+
+UnSetSrc:	jsr	SrcBoxDims
+	ldw	A2,#SrcList
+	mvb	SrcPage,Temp	; now check clicked
+	mvb	SrcPage,Temp+1
+	avb	#13,Temp+1
+10$:	ldy	Temp	; by looping
+	lda	SrcPicks,y
+	beq	11$
+	sty	A2L
+	inc	A2L		; since FileList is 1 based
+	sbb	SrcPage,A2L
+	jsr	PikList
+11$:	inc	Temp
+	beq	12$
+	cpb	Temp,Temp+1
+	ble	10$
+12$:	ldy	#0
+	lda	#0
+13$:	sta	SrcPicks,y
+	iny
+	bne	13$
+	rts
+
+
+.ramsect
+FormatCode:	.block 1	; code for format 0,1,2,...
+DskFmtFlg:	.block	1	; flag for switching to 41 mode
+ChainCode:	.block	1	; code for which vlir reference
+MethCode:	.block	1	; method info flags
+PackUnpack:	.block	1	; pack, unpack
+THEICONS:	.block	80	; click table
+ADW4080:	.block	1	; always $00
+Flag4080:	.block	1	; $00=40 $80=80
+Temp:	.block	20	; for whatever you want
+TempCurr:	.block	1	; for vjmp errors
+BootDrv:	.block	1	; boot drive
+ListPtr:	.block	1	; index into SrcList
+PickPtr:	.block	1	; index into SrcPics
+
+FileName:	.block	30	; the file being created (pack)
+
+SrcNam:	.block	20	; name of disk 
+SrcDrv:	.block	1	; source drive
+SrcList:	.block	256	; list of source files
+SrcPage:	.block	1	; how far down we are in dest list
+SrcPicks:	.block	256	; list of picked source files
+EndSrc:	.block	1
+DstNam:	.block	20	; name of disk 
+DstDrv:	.block	1	; destination drive
+DstList:	.block	256	; windowed list of dest files
+DstPage:	.block	1	; how far down we are in dest list
+EndDst:	.block	1
+</pre></body></html>

@@ -1,0 +1,21 @@
+<!DOCTYPE html><html><head><title>Untitled</title></head><body><pre>
+;********************
+;*      geoBEAP
+;*  disk image archiver
+;*  by: Bo Zimmerman
+;*
+;*    main linker file
+;********************
+
+.output	geoBEAP
+.header	H/geoBEAP.rel
+
+.seq
+
+.psect	$0400
+;.ramsect	$2200 ; -- shouldn't matter where it starts...
+
+S/geoBEAP.rel
+S/geoBEAP2.rel
+S/txtBEAP.rel
+</pre></body></html>

@@ -1,0 +1,93 @@
+<!DOCTYPE html><html><head><title>Untitled</title></head><body><pre>
+;********************
+;*  S/txtBEAP
+;*
+;* This file exists because 
+;* of the object file limits
+;* of geoAssembler.
+;*
+;* It contains icon data
+;* and text strings for
+;* geoBEAP
+;*
+;* by: Bo Zimmerman
+;*********************
+
+.psect
+
+
+;*******************
+;*  Icon data for IconList
+;*******************
+
+EXIcon:
+<img src="00064.png" />	EXIx	=picW
+	EXIy	=picH
+
+LAUcon:
+<img src="00065.png" />	LAUx	=picW
+	LAUy	=picH
+
+DSKcon:
+<img src="00066.png" />	DSKx	=picW
+	DSKy	=picH
+
+DRVcon:
+<img src="00067.png" />	DRVx	=picW
+	DRVy	=picH
+
+DWNcon:
+<img src="00068.png" />	DWNx	=picW
+	DWNy	=picH
+
+UPAcon:
+<img src="00069.png" />	UPAx	=picW
+	UPAy	=picH
+
+
+;*******************
+;*  Text Equates
+;*******************
+
+NOTXT:	.byte	27,"  ",0
+DVtxt0:	.byte	$18,"Only one drive detected, or",27,0
+DVtxt1:	.byte	$18,"other drive(s) inaccessible.",27,0
+GBtxt0:	.byte	$18,"Quit back to the deskTop?",27,0
+EFtxt0:	.byte	$18,"Enter destination file name:",27,0
+DKtxt0:	.byte	$18,"Insert new disk into drive.",27,0
+DEtxt0:	.byte	$18,"Source drive may not be the",27,0
+DEtxt1:	.byte	$18,"same as the dest. drive.",27,0
+FNtxt0:	.byte	$18,"Source file not selected.",27,0
+D8txt0:	.byte	$18,"Dest. drive must be 5.25 in.",27,0
+D8txt1:	.byte	$18,"1541, 1571 or compatible.",27,0
+D8txt2:	.byte	$18,"Source drive must be 5.25 in.",27,0
+NBtxt0:	.byte	$18,"Insufficient blocks on dest.",27,0
+NBtxt1:	.byte	$18,"drive to create image file.",27,0
+NDtxt0:	.byte	$18,"Selected file may not be",27,0
+NDtxt1:	.byte	$18,"correct type. Continue?",27,0
+NTtxt0:	.byte	$18,"Selected file is not in",27,0
+NTtxt1:	.byte	$18,"the correct format.",27,0
+DDtxt0:	.byte	$18,"Dest.  disk error #$",27,27,27,27,0
+DStxt0:	.byte	$18,"Source disk error #$",27,27,27,27,0
+DUtxt0:	.byte	$18,"Wierd  disk error #$",27,27,27,27,0
+D6txt0:	.byte	$18,"Ok to overwrite SS 1541",27,0
+D6txt1:	.byte	$18,"image on DS 1571 drive?",27,0
+D7txt0:	.byte	$18,"Read SS 1541 image from",27,0
+D7txt1:	.byte	$18,"DS 1571 drive?",27,0
+OKtxt0:	.byte	$18,"Overwrite destination disk?",27,0
+OKtxt1:	.byte	$18,"Begin archive operation?",27,0
+NItxt0:	.byte	$18,"That particular function is",27,0
+NItxt1:	.byte	$18,"not implemented yet.",27,0
+BDtxt0:	.byte	$18,"Destination drive must be a",27,0
+BDtxt1:	.byte	$18,"1571 to accept the image.",27,0
+BDtxt2:	.byte	$18,"1581 to accept the image.",27,0
+BDtxt3:	.byte	$18,"CMD to accept the image.",27,0
+OCtxt0:	.byte	$18,"Operation completed.",27,0
+D1txt0:	.byte	$18,"Insert disk into drive A.",27,0
+ERtxt0:	.byte	$18,"Track/Sector: $",0,0,",",0,0,27,0
+ERtxt1:	.byte	$18,"Couldn't create file",27,0
+ERtxt2:	.byte	$18,"on destination disk.",27,0
+CNtxt0:	.byte	$18,"Destination partition is a",27,0
+CNtxt1:	.byte	$18,"different size, proceed?",27,0
+
+</pre></body></html>

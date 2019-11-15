@@ -1,0 +1,18 @@
+geoBEAP (C)1995-2019 Bo Zimmerman
+Please read the LICENSE file for license information
+Please read the NOTICE file for credits information
+Home Page: http://www.zimmers.net/geos/
+
+geoBEAP is a full featured file and disk archival program which supports numerous formats popular with GEOS and Commodore users.  These formats include .D64, .D71, .D81, .CVT (GEOS Convert), .BEP (geoBEAP disk image format), .LNX (LYNX, all versions, including geoPack files), .ARK, ZipCode, and both the single and multi-file compressed EMUTIL disk image formats (also called .RLE).  
+
+There are two versions in this distribution, the original geoBEAP and geoBEAP II.  They are included separately since they are built using different library architectures.  For users, it is best to stick with v2.
+
+Instructions for using geoBEAP can be read online at https://github.com/bozimmerman/geoBEAP/tree/master/v2/src-html/geoBEAPDocs.html . The instructions are also in geoWrite format in the src-geowrite directory.
+
+Building:
+geoBEAP v1 was built using geoProgrammer, and requires the APICommon and GEOSequates files from the geoModules project at https://github.com/bozimmerman/geoModules
+
+geoBEAP v2 was built using Concept for Wheels 64.  It might also build using geoProgrammer, but hasn't been tested.  In addition to the provided source, you'll require several components and libraries from the geoModules project:
+https://github.com/bozimmerman/geoModules
+
+
