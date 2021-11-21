@@ -1,5 +1,5 @@
 <!DOCTYPE html><html><head><title>Untitled</title></head><body><pre>
-geoBEAP  2.1a
+geoBEAP  2.1b
 (c) 2001 by Bo Zimmerman
 
 This program is shareware.  If you find the program useful, please register it.  It will encourage me to continue developing this software.  Registration instructions can be seen by executing the program.
@@ -7,7 +7,7 @@ This program is shareware.  If you find the program useful, please register it. 
 Please send any and all reports of praise or problems to bo@zimmers.net, or to the address shown on the registration screen.  Only registered users will receive bug fixes and new feature enhancements.
 
 INTRODUCTION
-geoBEAP is a full featured archival program which supports numerous formats popular with GEOS and Commodore users.  These formats include .D64, .D71, .D81, .CVT (GEOS Convert), .BEP (geoBEAP disk image format), .LNX (LYNX, all versions, including geoPack files), .ARK, ZipCode, and both the single and multi-file compressed EMUTIL disk image formats (also called .RLE).  
+geoBEAP is a full featured archival program which supports numerous formats popular with GEOS and Commodore users.  These formats include .D64, .D71, .D81, .CVT (GEOS Convert), .BEP (geoBEAP disk image format), .LNX (LYNX, all versions, including geoPack files), .ARK, ZipCode, and both the single and multi-file compressed EMUTIL disk image formats (also called .RLE).
 
 Some of the archive formats mentioned above are disk image formats.  This means that they are archives of every track and sector on a diskette.  The disk image formats are: .D64 (1541 disks only), .D71 (1571 disks only), .D81 (1581 disks only), .BEP (any GEOS/Wheels supported drives), ZipCode (1541 disks only), and the two types of EMUTIL formats (any GEOS/Wheels supported drives).
 
@@ -45,7 +45,7 @@ LAUNCHING
 Packing:
     The .D64 format was first invented by the authors of the Commodore 64 emulator for the PC called C64S.  The .D71 and .D81 formats followed later.  Each is an uncompressed image of an entire disk, assuming the disk does not have any errors.  These format can be used to archive 1541 disks, 1571 disks, and 1581 disks only and respectively.
 
-    To create one of these archives, first make sure that one of the supported disk drives is the source drive, that the source and destination drives are different, and that a disk capable of holding the entire disk image archive file is in the destination drive.  A 1541 disk image file (.D64) requires 689 free blocks on the destination disk.  A 1571 disk image file (.D71) requires 1378 free blocks on the destination disk.  A 1581 disk image file (.D81) requires 3200 free blocks on the destination disk.  
+    To create one of these archives, first make sure that one of the supported disk drives is the source drive, that the source and destination drives are different, and that a disk capable of holding the entire disk image archive file is in the destination drive.  A 1541 disk image file (.D64) requires 689 free blocks on the destination disk.  A 1571 disk image file (.D71) requires 1378 free blocks on the destination disk.  A 1581 disk image file (.D81) requires 3200 free blocks on the destination disk.
 
     When clicking the launch button, the user will be asked to give a name (max 12 characters) for the archive file.  The extension .D64 or .D71 or .D81 will be automatically added to the name entered.  After confirming the process, a progress box located near the bottom of the destination file window will appear and update itself as the packing process completes.
 
@@ -59,17 +59,17 @@ Unpacking:
 geoBEAP (.BEP) images
 
 Packing:
-    The .BEP format was invented by the author of this program as a substitute for ZipCode and .D64 disk image formats.  The .BEP format features support for any GEOS supported disk or partition, and a much higher level of compression than that afforded by ZipCode or even the EMUTIL format.  Like the .D64 image archive, a .BEP archive file contains an entire disk image.  Unlike .D64 image archives, however, the .BEP format may be of a 1541 disk, a 1571 disk, a 1581 disk, a CMD FD2000 disk, a CMD HD partition, or a CMD RamLink partition.  
+    The .BEP format was invented by the author of this program as a substitute for ZipCode and .D64 disk image formats.  The .BEP format features support for any GEOS supported disk or partition, and a much higher level of compression than that afforded by ZipCode or even the EMUTIL format.  Like the .D64 image archive, a .BEP archive file contains an entire disk image.  Unlike .D64 image archives, however, the .BEP format may be of a 1541 disk, a 1571 disk, a 1581 disk, a CMD FD2000 disk, a CMD HD partition, or a CMD RamLink partition.
 
     To create one of these archives, first make sure that the desired disk and partition are displayed in the source drive window, that the source and destination drives are different, and that a disk capable of holding the entire archive file is in the destination drive.    .BEP archive file sizes vary considerably.  A relatively blank 1571 disk may compress to only 3k (12 blocks), while a 1571 disk full of programs may not compress much at all (970 blocks).  Be sure to leave plenty of destination disk space for any possible archive.  Failure to do so will abort the archival process, once the disk becomes full.  Clicking the launch button will present the user with a dialog into which a name for the new .BEP archive file can be entered.  The extension .BEP will be automatically added to the name entered.  During the packing process, a progress box will appear in the destination window.
 
     The .BEP archive format uses a very complex algorithm in order to get very good compression of disks.  Because this algorithm is so complex, the creation of these archives can take a very long time.  A processor upgrade cartridge, such as the CMD SuperCPU, can improve the performance of this format considerably.
-  
+
 Unpacking:
     To unpack one or more of these archives, select their names in the source file window.  Make sure that the destination disk is of the correct type, which depends on the type of disk the .BEP file was made from.  geoBEAP will present an error if, for instance, it is asked to unpack a .BEP image of a 1571 disk onto a 1581 disk in the destination drive. The destination disk must also be completely formatted before unpacking can begin.  Unpacking a disk image onto an unformatted disk will abort the process.  Also remember that unpacking a disk image will completely erase any contents on the destination disk and replace them with the archive contents.
 
     If more than one image archive file has been selected, a confirmation dialog box will appear between each archive file.  When this confirmation box appears, the destination disk may be replaced in order to receive the next image archive.
-   
+
     As mentioned above, the .BEP archive format uses a very complex algorithm in order to get very good compression of disks.  Because this algorithm is so complex, the unpacking of these archives can take a very long time.  A processor upgrade cartridge, such as the CMD SuperCPU, can improve performance considerably.
 
 GEOS Convert (.CVT) files
@@ -79,7 +79,7 @@ Packing:
 
     Convert will only affect GEOS type files, such as geoWrite documents, GEOS applications, desk accessories, and so forth.  To convert, select the desired files in the source file window and click the launch button.  If the source and destination drives are the same, the conversion will be performed in-place.  In-place means that the GEOS file being converted will be replaced by the .CVT file.  If the source and destination drives are different, geoBEAP will copy the source file onto the destination disk before performing the in-place conversion.  This means that the destination disk must have enough space to hold the source files, and must not have files with duplicate names to either the source file, or the .CVT file being created.
 
-    During the file Convert process, a progress box located near the bottom of the destination file window will appear and update itself as packing completes.  The extension .CVT will be automatically added to the names of the source files, and the source files will be given standard Commodore file names.  
+    During the file Convert process, a progress box located near the bottom of the destination file window will appear and update itself as packing completes.  The extension .CVT will be automatically added to the names of the source files, and the source files will be given standard Commodore file names.
 
 Unpacking:
     The unConverting process will turn a .CVT file back into a usable GEOS file.  To do this, select the .CVT files from the source file window and click the launch button.  If the source and destination drives are the same, the unpacking will be performed in-place, meaning the .CVT file will be replaced by the GEOS file contained therein.  If the source and destination drives are different, geoBEAP will copy the source archive file onto the destination disk before performing the in-place unpacking.  This means that the destination disk must have enough space to hold the source files, and must not have files with duplicate names to either the source .CVT file, or the GEOS file being created.
@@ -88,7 +88,7 @@ Unpacking:
 ZipCode (1!, 2!, etc..) images
 
 Packing:
-    ZipCode was written by A.L. Peters, and was both the first, and for a very long time the ONLY disk image archiver for Commodore computers.  Zipcode will create a multi-file disk image archive of a 1541 disk.  Although Zipcode supports a 4-pack format for standard 1541 disks, a 5-pack format for extended 1541 disks, and a 6-pack format for 1541 disks with errors, geoBEAP only supports the more common 4-pack version.  Each file in a 4-pack archive begins with a number from one to four, followed by an exclaimation point (1!diskname, 2!diskname, etc).  Zipcode will also use fast and effective compression.  
+    ZipCode was written by A.L. Peters, and was both the first, and for a very long time the ONLY disk image archiver for Commodore computers.  Zipcode will create a multi-file disk image archive of a 1541 disk.  Although Zipcode supports a 4-pack format for standard 1541 disks, a 5-pack format for extended 1541 disks, and a 6-pack format for 1541 disks with errors, geoBEAP only supports the more common 4-pack version.  Each file in a 4-pack archive begins with a number from one to four, followed by an exclaimation point (1!diskname, 2!diskname, etc).  Zipcode will also use fast and effective compression.
 
     To create one of these archives, first make sure that the source drive is either a 1541 or 1571 disk drive, that the source drive contains a 1541 format disk, that the source and destination drives are different, and that a disk with at least a few hundred blocks free is available in the destination drive.  If the destination drive is filled up during the creation of the Zipcode 4-pack archive, a dialog box will be presented to allow a new destination disk to be inserted so that the process may be completed.
 
@@ -113,9 +113,9 @@ Packing:
     geoBEAP will create a LYNX XV compliant LYNX archive.
 
 Unpacking:
-    To unpack a LYNX archive, select the archive file from the source file window and click the launch button.  If the source and destination drives are the same, only one LYNX archive may be processed at a time, and the unpacking will occur in-place, which means that the LYNX archive file will be removed and replaced by the files which are the contents of the archive.  If the source and destination drives are different, any number of LYNX archives may be selected, and the archive files will be copied to the destination drive before they are unpacked.  This means that the destination disk must have sufficient space to hold the contents of the selected LYNX archives.  
+    To unpack a LYNX archive, select the archive file from the source file window and click the launch button.  If the source and destination drives are the same, only one LYNX archive may be processed at a time, and the unpacking will occur in-place, which means that the LYNX archive file will be removed and replaced by the files which are the contents of the archive.  If the source and destination drives are different, any number of LYNX archives may be selected, and the archive files will be copied to the destination drive before they are unpacked.  This means that the destination disk must have sufficient space to hold the contents of the selected LYNX archives.
 
-    During the unpacking process, a progress box in the destination file window will notify the user when files are being copied, unpacked from the LYNX archive, and Converted back from .CVT format to the GEOS file type format if necessary.  REL (relative) files will also require additional processing to restore side-sector links.  If more than one LYNX archive file was selected, a confirmation dialog box will appear between each archive file.  
+    During the unpacking process, a progress box in the destination file window will notify the user when files are being copied, unpacked from the LYNX archive, and Converted back from .CVT format to the GEOS file type format if necessary.  REL (relative) files will also require additional processing to restore side-sector links.  If more than one LYNX archive file was selected, a confirmation dialog box will appear between each archive file.
 
 ARK (.ARK) file archives
 
@@ -129,9 +129,9 @@ Packing:
     geoBEAP will create a ARK V2 compliant ARKive.
 
 Unpacking:
-    To unpack an ARKive, select the ARKive file from the source file window and click the launch button.  If the source and destination drives are the same, only one ARKive may be processed at a time, and the unpacking will occur in-place, which means that the ARKive file will be removed and replaced by the files which are the contents of the ARKive.  If the source and destination drives are different, any number of ARKives may be selected, and the ARKive files will be copied to the destination drive before they are unpacked.  This means that the destination disk must have sufficient space to hold the contents of the selected ARKives.  
+    To unpack an ARKive, select the ARKive file from the source file window and click the launch button.  If the source and destination drives are the same, only one ARKive may be processed at a time, and the unpacking will occur in-place, which means that the ARKive file will be removed and replaced by the files which are the contents of the ARKive.  If the source and destination drives are different, any number of ARKives may be selected, and the ARKive files will be copied to the destination drive before they are unpacked.  This means that the destination disk must have sufficient space to hold the contents of the selected ARKives.
 
-    During the unpacking process, a progress box in the destination file window will notify the user when files are being copied, unpacked from the ARKive, and Converted back from .CVT format to the GEOS file type format if necessary.  REL (relative) files will also require additional processing to restore side-sector links.  If more than one ARKive file was selected, a confirmation dialog box will appear between each ARKive file.  
+    During the unpacking process, a progress box in the destination file window will notify the user when files are being copied, unpacked from the ARKive, and Converted back from .CVT format to the GEOS file type format if necessary.  REL (relative) files will also require additional processing to restore side-sector links.  If more than one ARKive file was selected, a confirmation dialog box will appear between each ARKive file.
 
 EMUTIL single-file disk images
 
@@ -141,7 +141,7 @@ Packing:
     To create one of these archives, first make sure that the desired disk and partition are displayed in the source drive window, that the source and destination drives are different, and that a disk capable of holding the entire archive file is in the destination drive.    EMUTIL archive file sizes vary considerably.  A relatively blank 1571 disk may compress to only 20k (80 blocks), while a 1571 disk full of programs may not compress much at all (1300 blocks).  Be sure to leave plenty of destination disk space for any possible archive.  Failure to do so will abort the archival process, once the disk becomes full.
 
     The EMUTIL .RLE format does not store any information about the original disk image format.  For this reason, embedding the type of disk from which the archive was made (1541, 1571, etc) into the name of the archive would be wise.
-  
+
 Unpacking:
     To unpack one or more of these archives, select their names in the source file window.  EMUTIL image files created with geoBEAP will have the .RLE extension.  EMUTIL image files created with EMUTIL may not.  Make sure that the destination disk is of the correct type, which depends on the type of disk the EMUTIL file was made from.  geoBEAP will not present an error if one of these archive files is unpacked onto the wrong type of disk, but will likely terminate prematurely. The destination disk must also be completely formatted before unpacking can begin.  Unpacking a disk image onto an unformatted disk will abort the process.  Also remember that unpacking a disk image will completely erase any contents on the destination disk and replace them with the archive contents.
 
@@ -152,7 +152,7 @@ Unpacking:
 EMUTIL multi-file disk images
 
 Packing:
-    The multi-file EMUTIL format is identical to the EMUTIL single-file disk image format, except that the image is conveniently broken into numerous smaller files.  Each file in a multi-file EMUTIL disk image archive begins with a number from one on up, followed by a dash (1-diskname, 2-diskname, etc).  Multi-file EMUTIL disk image archives created with geoBEAP will also end with the .RLE extension.  Like the single-file version of this format, a compression algorithm comparable (read: better) than Zipcodes will be used on the disk sectors.  
+    The multi-file EMUTIL format is identical to the EMUTIL single-file disk image format, except that the image is conveniently broken into numerous smaller files.  Each file in a multi-file EMUTIL disk image archive begins with a number from one on up, followed by a dash (1-diskname, 2-diskname, etc).  Multi-file EMUTIL disk image archives created with geoBEAP will also end with the .RLE extension.  Like the single-file version of this format, a compression algorithm comparable (read: better) than Zipcodes will be used on the disk sectors.
 
     To create one of these archives, first make sure that the desired disk and partition are displayed in the source drive window, that the source and destination drives are different, and that a disk with at least a few hundred blocks free is available in the destination drive.  If the destination drive is filled up during the creation of the EMUTIL multi-file archive, a dialog box will be presented to allow a new destination disk to be inserted so that the process may be completed.
 

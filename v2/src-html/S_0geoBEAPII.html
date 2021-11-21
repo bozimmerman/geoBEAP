@@ -41,7 +41,7 @@ ReStart:	ldb	dispBufferOn,#(ST_WR_FORE|ST_WR_BACK)
 	mvb	curDrive,BootDrv
 	rts		; return to geos kernal
 ByeBye:	jmp	EnterDeskTop
-PermName:	.byte	"geoBEAP     2.1a",0
+PermName:	.byte	"geoBEAP     2.1b",0
 
 vjmp:	mvb	A2L,TempCurr
 	jsr	VJump
@@ -84,7 +84,7 @@ GetSPtr:	ldw	A0,#SrcList
 12$:	stx	Temp
 	ldb	Temp+1,#0
 	adw	Temp,A0
-	rts	
+	rts
 
 NewSrc:	ldw	R0,#EndSrc-SrcList
 	ldw	R1,#SrcList	; initialize list areas
@@ -164,7 +164,7 @@ ShowSrc:
 
 NewDst:	ldw	R0,#EndDst-DstList
 	ldw	R1,#DstList	; initialize list areas
-	jsr	ClearRam	
+	jsr	ClearRam
 ReadDst:	lda	DstDrv
 	jsr	SetDevice
 	jsr	OpenDisk
@@ -256,7 +256,7 @@ DoDiskS:		; ** handle disk icon under source
 	beq	11$
 	rts
 11$:	jsr	NewDst
-	jmp	ShowDst	
+	jmp	ShowDst
 
 DoDiskD:		; ** handle disk icon under source
 	lda	DstDrv	; set up source
@@ -312,11 +312,11 @@ DoDskN:	cmp	DstDrv
 	sta	$02	; set lsb for dialog data
 	lda	#](FmtDBX)
 	sta	$03	; set msb for dialog data
-	jsr	$c256	; call DoDlgBox and leave!	
+	jsr	$c256	; call DoDlgBox and leave!
 	cbi	sysDBData,#$14
 	bne	15$
 	lda	DstDrv
-	clc	
+	clc
 	adc	#$39
 	sta	FTtxt00+23
 	ldb	DskFmtFlg,#0
@@ -333,7 +333,7 @@ DoDskN:	cmp	DstDrv
 	sta	$02	; set lsb for dialog data
 	lda	#](DlgFmt)
 	sta	$03	; set msb for dialog data
-14$:	jsr	$c256	; call DoDlgBox and leave!	
+14$:	jsr	$c256	; call DoDlgBox and leave!
 	cbi	sysDBData,#$03
 	bne	15$
 	jmp	DoFmtD
@@ -374,8 +374,8 @@ DoFmtD:	lda	DstDrv
 	ldy	#15	; command channel
 	jsr	$ffba	; setlfs
 	lda	#$0a	; strlen NEWDSKD
-	ldx	#[(NEWDSKD)	; 
-	ldy	#](NEWDSKD)	
+	ldx	#[(NEWDSKD)	;
+	ldy	#](NEWDSKD)
 	jsr	$ffbd	; setnam
 	jsr	$ffc0	; open
 	lda	#1
@@ -387,7 +387,7 @@ DoFmtD:	lda	DstDrv
 	cmp	#$02
 	bne	11$
 	lda	#2	; yes, will already be 2, but 2=1571
-	jsr	DONED71	
+	jsr	DONED71
 11$:	jsr	DoneWithIO
 	jsr	EnterTurbo
 	pla
@@ -403,8 +403,8 @@ DONED71:	clc
 	ldy	#15	; command channel
 	jsr	$ffba	; setlfs
 	lda	#$05	; strlen NEWDSKD
-	ldx	#[(NEW1571D)	; 
-	ldy	#](NEW1571D)	
+	ldx	#[(NEW1571D)	;
+	ldy	#](NEW1571D)
 	jsr	$ffbd	; setnam
 	jsr	$ffc0	; open
 	lda	#1
@@ -414,11 +414,11 @@ DoNxtD:	lda	#[(DNDlgT)
 	sta	$02	; set lsb for dialog data
 	lda	#](DNDlgT)
 	sta	$03	; set msb for dialog data
-	jsr	$c256	; call DoDlgBox and leave!	
+	jsr	$c256	; call DoDlgBox and leave!
 	cbi	sysDBData,#$14
 	bne	13$
 	lda	DstDrv
-	clc	
+	clc
 	adc	#$39
 	sta	FTtxt00+23
 	ldb	DskFmtFlg,#0
@@ -435,7 +435,7 @@ DoNxtD:	lda	#[(DNDlgT)
 	sta	$02	; set lsb for dialog data
 	lda	#](DlgFmt)
 	sta	$03	; set msb for dialog data
-12$:	jsr	$c256	; call DoDlgBox and leave!	
+12$:	jsr	$c256	; call DoDlgBox and leave!
 	cbi	sysDBData,#$03
 	bne	13$
 	jsr	DoFmtD
@@ -575,7 +575,7 @@ CMclick:	lda	mouseData
 	lda	(A0),y
 	bne	12$	; if not, continue
 	rts
-12$:	mvb	A2L,Temp+10	
+12$:	mvb	A2L,Temp+10
 	jsr	GetMeth
 	cmp	#$0f
 	beq	15$
@@ -609,7 +609,7 @@ ClickPack:
 	jsr	IsMseInRegion
 	cmp	#$ff
 	bne	20$
-	jsr	InvertRectangle	
+	jsr	InvertRectangle
 	jsr	UnpackDims
 	jsr	InvertRectangle
 	ldb	PackUnpack,#0
@@ -627,7 +627,7 @@ ClickPack:
 	inc	PackUnpack
 	jsr	UnSetSrc
 30$:	rts
-	
+
 PackDims:	ldb	R2L,#61
 	ldb	R2H,#69
 	jmp	PakUnkDim
@@ -802,13 +802,13 @@ PickPtr:	.block	1	; index into SrcPics
 
 FileName:	.block	30	; the file being created (pack)
 
-SrcNam:	.block	20	; name of disk 
+SrcNam:	.block	20	; name of disk
 SrcDrv:	.block	1	; source drive
 SrcList:	.block	256	; list of source files
 SrcPage:	.block	1	; how far down we are in dest list
 SrcPicks:	.block	256	; list of picked source files
 EndSrc:	.block	1
-DstNam:	.block	20	; name of disk 
+DstNam:	.block	20	; name of disk
 DstDrv:	.block	1	; destination drive
 DstList:	.block	256	; windowed list of dest files
 DstPage:	.block	1	; how far down we are in dest list
