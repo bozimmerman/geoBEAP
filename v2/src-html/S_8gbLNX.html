@@ -140,7 +140,7 @@ deLYNX:	ldw	A2,#FNBuf
 	ldw	A2,#t2DeLynx
 	ldw	A3,#FNBuf
 	jsr	FileBar
-	cwi	ThisTNS,#0
+	lda	ThisTNS
 	beq	23$
 	jsr	inNum
 	bne	24$
@@ -177,8 +177,8 @@ deLYNX2:	ldw	RelInfo,#0
 	jsr	inNum
 	bne	24$
 	mvw	A2,FileLSize
-	cwi	A2,#0
-	beq	23$
+	;cwi	A2,#0
+	;beq	23$
 33$:	mvw	FNTabE,A0
 	ldx	#0
 	ldy	#0
@@ -196,7 +196,7 @@ deLYNX2:	ldw	RelInfo,#0
 24$:	rts
 
 
-deLYNXfile:	ldb	R10L,#0
+deLYNXfile:	ldb	R10L,#0	; 
 	jsr	GetFreeDirBlk	; now find a directory entry
 	cpx	#0
 	beq	10$	; a error getting dir entry!
@@ -246,7 +246,7 @@ deLYNXfile:	ldb	R10L,#0
 	sta	$8000,y
 	jmp	unLINK
 
-unLINK:	lda	TypeInfo
+unLINK:	lda	TypeInfo	; maybe do REL files
 	and	#$1f
 	cmp	#4
 	beq	50$
@@ -289,13 +289,19 @@ unLINK:	lda	TypeInfo
 	jmp	unLINK2
 
 
-unLINK2:
-50$:	mvw	ThisTNS,R1
+unLINK2:			; do all non-rel files
+50$:	lda	ThisTNS
+	bne	51$
+	cbi	NumFiles,#1
+	bne	51$
+	cbi	FileBlocks,#1
+	beq	52$
+51$:	mvw	ThisTNS,R1
 	ldw	R4,#$8100
 	jsr	GetBlock
 	cpx	#0
 	bne	99$
-	mvw	$8100,ThisTNS
+52$:	mvw	$8100,ThisTNS
 	dew	FileBlocks
 	cwi	FileBlocks,#0
 	bne	50$
@@ -912,7 +918,9 @@ DecToChr:	ldy	#0	; value in A2, returns Y index
 	sta	ChrBuf,y
 	ldy	#0
 	ldw	A2,#ChrBuf
-45$:	lda	ChrBuf,y
+45$:	cpy	#2
+	beq	50$
+	lda	ChrBuf,y
 	cmp	#'0'
 	bne	50$
 	iny

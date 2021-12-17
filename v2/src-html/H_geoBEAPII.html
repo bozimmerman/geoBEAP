@@ -19,14 +19,14 @@
 	.word	0	;first two bytes = 0
 	.byte	3		;width in bytes
 	.byte	21	;and height in scanlines of:
-<img src="00063.png" />	.byte	$80 | 3	;Commodore type, bit 7 S
+<img src="00065.png" />	.byte	$80 | 3	;Commodore type, bit 7 S
 	.byte	APPLICATION	;Geos file type
 	.byte	VLIR	;Geos file structure type
-	.word	ProgStart	;load address of program
+	.word	ProgStart	;load address of program 
 	.word	$03ff	;end address, needed for
 				;desk accessories.
 	.word	ProgStart	;init address of program
-	.byte	"geoBEAP     2.1b",0,0,0,64
+	.byte	"geoBEAP     2.1c",0,0,0,64
 			;perm. filename 12 chars,
 			;4 char version number,
 			;3 zeroes,

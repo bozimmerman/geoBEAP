@@ -100,7 +100,7 @@ BEAPSCRN:	.byte	NEWPATTERN,1	; 0,1
 	.byte	MOVEPENTO,200,0,50	; 110,111,112,113
 	.byte	FRAME_RECTO,56,1,161	; 114,115,116,117
 	.byte	ESC_PUTSTRING,110,0,10	; title,118,119,120,121
-	.byte	$18,$1a,"geoBEAP 2.1a",27,0
+	.byte	$18,$1a,"geoBEAP 2.1c",27,0
 
 fBEAPSCRN:	.byte	[(BEAPSCRN+8),](BEAPSCRN+8),1,$81
 	.byte	[(BEAPSCRN+18),](BEAPSCRN+18),1,$81
@@ -150,7 +150,7 @@ CB3:	.byte	2
 	.byte	165
 	.byte	DRVw,DRVh
 	.word	DoDriveS
-	.word	DRVcon	; right DRIVE icon
+	.word	DRVcon	; right DRIVE icon 
 CB4:	.byte	26
 	.byte	165
 	.byte	DRVw,DRVh
@@ -222,7 +222,7 @@ MoveCons:	ldw	R0,#ClickBoxes
 	inw	R1
 	blt	10$
 	rts
-
+	
 FixOne:	ldy	#0
 	lda	(R0),y
 	ora	Flag4080
@@ -240,35 +240,36 @@ FixHalf:	ldy	#0
 
 EXIcon:
 
-<img src="00066.png" />	EXIw	=picW
+<img src="00064.png" />	EXIw	=picW
 	EXIh	=picH
 
 LAUcon:
 
-<img src="00067.png" />	LAUw	=picW
+<img src="00065.png" />	LAUw	=picW
 	LAUh	=picH
 
 DSKcon:
 
-<img src="00068.png" />	DSKw	=picW
+<img src="00066.png" />	DSKw	=picW
 	DSKh	=picH
 
 DRVcon:
 
-<img src="00069.png" />	DRVw	=picW
+<img src="00067.png" />	DRVw	=picW
 	DRVh	=picH
 
 AROcon:
 
-<img src="00070.png" />	AROw	=picW
+<img src="00068.png" />	AROw	=picW
 	AROh	=picH
 
 FMTcon:
-<img src="00071.png" />	FMTw	=picW
+<img src="00069.png" />	FMTw	=picW
 	FMTh	=picH
 
 AbtBox:	jsr	ClrScrn
-AbtBox2:	cwi	rightMargin,#320
+AbtBox2:	rts		; get rid of about box
+	cwi	rightMargin,#320
 	ble	10$
 	ldb	AbtDat+4,#$80
 	ldb	AbtDat+6,#$81
@@ -303,7 +304,7 @@ AbtDat:	.byte	$01	; size flag, and shadow pattern
 	.word AbtT0a
 	.byte	$01,$12,$7e	; OK button
 	.byte	$00	; end of table
-AbtT00:	.byte	$1a,$18,"       geoBEAP v2.1a",27,0
+AbtT00:	.byte	$1a,$18,"       geoBEAP v2.1c",27,0
 AbtT01:	.byte	"This program is SHAREWARE.  Distribute it",27,0
 AbtT02:	.byte	"as you like.  If you enjoy it, send your",27,0
 AbtT03:	.byte	"registration fee of $25 USD to the",27,0
